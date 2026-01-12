@@ -1,0 +1,75 @@
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #0b1020;
+  color: #fff;
+}
+
+.wrap {
+  padding: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.card {
+  background: rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 0;
+  font-size: 16px;
+}
+
+.compass {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  margin: 16px auto;
+}
+
+.dial {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.18);
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+}
+
+.arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 120px;
+  background: #3aa0ff;
+  transform-origin: 50% 90%;
+  transform: translate(-50%, -90%) rotate(0deg);
+  border-radius: 8px;
+}
+
+.centerDot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+
+.info {
+  opacity: 0.85;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#status {
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
