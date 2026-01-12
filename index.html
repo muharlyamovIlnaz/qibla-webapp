@@ -2,24 +2,36 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>Qibla Compass</title>
-    <link rel="stylesheet" href="style.css"/>
+
+    <!-- Telegram -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css"/>
 </head>
+
 <body>
 <div class="wrap">
-    <h1>🧭 Кыбла (компас)</h1>
+    <h1>Qibla</h1>
 
     <div class="card">
-        <div id="status">
-            Нажмите “Разрешить”, чтобы включить датчики и геолокацию.
+        <div id="status" class="status">
+            Нажмите «Начать», чтобы определить направление Кыблы
         </div>
 
-        <button id="btnStart">Разрешить и начать</button>
+        <button id="btnStart">Начать</button>
 
         <div class="compass">
             <div class="dial"></div>
+
+            <!-- Cardinal points -->
+            <div class="mark n">N</div>
+            <div class="mark e">E</div>
+            <div class="mark s">S</div>
+            <div class="mark w">W</div>
+
             <div id="arrow" class="arrow"></div>
             <div class="centerDot"></div>
         </div>
@@ -27,7 +39,6 @@
         <div class="info">
             <div>Азимут Кыблы: <span id="qAz">—</span>°</div>
             <div>Направление телефона: <span id="hAz">—</span>°</div>
-            <div>Угол стрелки: <span id="aAz">—</span>°</div>
         </div>
     </div>
 </div>
