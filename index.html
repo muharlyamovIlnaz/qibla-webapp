@@ -9,7 +9,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=20260112_1">
+    <link rel="stylesheet" href="style.css?v=final_1">
 </head>
 
 <body>
@@ -27,51 +27,35 @@
         <button id="btnStart" class="btn">Начать</button>
 
         <div class="compassWrap">
-            <div class="compass" aria-label="Qibla compass">
-                <!-- DIAL: крутится по heading, вместе с N/E/S/W -->
+            <div class="compass">
                 <div id="dial" class="dial">
                     <div class="dialRing"></div>
 
-                    <!-- Cardinal points -->
                     <div class="mark n"><span>N</span></div>
                     <div class="mark e"><span>E</span></div>
                     <div class="mark s"><span>S</span></div>
                     <div class="mark w"><span>W</span></div>
 
-                    <!-- subtle ticks -->
                     <div class="ticks">
-                        <!-- 12 major ticks -->
-                        <i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i><i style="--i:3"></i>
-                        <i style="--i:4"></i><i style="--i:5"></i><i style="--i:6"></i><i style="--i:7"></i>
-                        <i style="--i:8"></i><i style="--i:9"></i><i style="--i:10"></i><i style="--i:11"></i>
+                        <i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i>
+                        <i style="--i:3"></i><i style="--i:4"></i><i style="--i:5"></i>
+                        <i style="--i:6"></i><i style="--i:7"></i><i style="--i:8"></i>
+                        <i style="--i:9"></i><i style="--i:10"></i><i style="--i:11"></i>
                     </div>
                 </div>
 
-                <!-- Arrow: показывает Кыблу (относительно устройства) -->
-                <div id="arrow" class="arrow" aria-hidden="true"></div>
-
-                <!-- Center -->
-                <div class="centerDot" aria-hidden="true"></div>
+                <div id="arrow" class="arrow"></div>
+                <div class="centerDot"></div>
             </div>
         </div>
 
         <div class="info">
-            <div class="pill">
-                <span class="label">Кыбла</span>
-                <span id="qAz" class="value">—</span><span class="unit">°</span>
-            </div>
-            <div class="pill">
-                <span class="label">Направление</span>
-                <span id="hAz" class="value">—</span><span class="unit">°</span>
-            </div>
-        </div>
-
-        <div class="hint">
-            Если показания “плавают” на Android — сделай калибровку компаса в системе (покрути телефон “восьмёркой”) и
-            убери магнитные чехлы.
+            <div class="pill">Кыбла: <span id="qAz">—</span>°</div>
+            <div class="pill">Направление: <span id="hAz">—</span>°</div>
         </div>
     </section>
 </div>
-<script src="app.js?v=20260112_1"></script>
+
+<script src="app.js?v=final_1"></script>
 </body>
 </html>
