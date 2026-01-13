@@ -7,6 +7,7 @@ const tg = window.Telegram?.WebApp ?? null;
 // DOM
 // ================================
 const statusEl = document.getElementById("status");
+const hintEl   = document.getElementById("hint");
 const btnStart = document.getElementById("btnStart");
 const arrowEl  = document.getElementById("arrow");
 const dialEl   = document.getElementById("dial");
@@ -19,26 +20,27 @@ const hAzEl    = document.getElementById("hAz");
 const KAABA_LAT = 21.422487;
 const KAABA_LON = 39.826206;
 
-// Сглаживание (0.06..0.15). Меньше => плавнее, но медленнее реакция.
-// Я поставил очень плавно, но адекватно.
-const SMOOTHING = 0.08;
+// Сглаживание (меньше = плавнее, но медленнее реакция)
+const SMOOTHING = 0.10;
 
-// Иногда Android отдаёт "шум" +/-2..5 градусов.
-// Этот порог отбрасывает микродрожь, но не ломает повороты.
+// Мёртвая зона от микродрожи компаса
 const JITTER_DEADZONE_DEG = 0.35;
+
+// Ограничение частоты рендера (мс)
+const MIN_FRAME_MS = 16;
 
 // ================================
 // State
 // ================================
 let qiblaAzimuth = null;
 
-// сырые показания и сглаженные
-let rawHeading = null;
-let smoothHeading = null;
+let rawHeading = null;     // последние сырые показания компаса
+let smoothHeading = null;  // сглаженные
 
-// for requestAnimationFrame loop
 let rafId = null;
-let lastRenderTs = 0;
+let lastTs = 0;
+
+let listening = false;
 
 // ================================
 // Utils
@@ -57,10 +59,10 @@ function shortestDeltaDeg(from, to) {
   return ((to - from + 540) % 360) - 180;
 }
 
-// Правильное сглаживание углов по кратчайшей дуге
+// Сглаживание угла по кратчайшей дуге + deadzone
 function smoothAngle(prev, next, factor) {
   const d = shortestDeltaDeg(prev, next);
-  if (Math.abs(d) < JITTER_DEADZONE_DEG) return prev; // убираем микродрожь
+  if (Math.abs(d) < JITTER_DEADZONE_DEG) return prev;
   return normalizeAngle(prev + d * factor);
 }
 
@@ -87,9 +89,13 @@ async function requestSensorsPermissionIfNeeded() {
   if (typeof DeviceOrientationEvent === "undefined") {
     throw new Error("Датчики ориентации не поддерживаются");
   }
+
+  // iOS 13+ требует явного запроса
   if (typeof DeviceOrientationEvent.requestPermission === "function") {
     const res = await DeviceOrientationEvent.requestPermission();
-    if (res !== "granted") throw new Error("Нет доступа к датчикам");
+    if (res !== "granted") {
+      throw new Error("Нет доступа к датчикам");
+    }
   }
 }
 
@@ -113,16 +119,16 @@ function getLocation() {
 // ================================
 // Orientation (heading)
 // ================================
-// Важно: heading = азимут устройства, 0 = North.
+// heading = азимут устройства, 0 = North.
 function extractHeadingDeg(e) {
-  // iOS Safari: абсолютный компас, лучший вариант
+  // iOS Safari: точный компас
   if (typeof e.webkitCompassHeading === "number") {
     return normalizeAngle(e.webkitCompassHeading);
   }
 
-  // Android/Chrome: alpha часто noisy и не всегда "absolute".
-  // Но для большинства устройств работает как heading fallback.
+  // Android/Chrome: alpha
   if (typeof e.alpha === "number") {
+    // если absolute=false — это может быть не “настоящий север”, но это лучше чем ничего
     return normalizeAngle(360 - e.alpha);
   }
 
@@ -132,20 +138,19 @@ function extractHeadingDeg(e) {
 function onOrientation(e) {
   const h = extractHeadingDeg(e);
   if (h == null) return;
-  rawHeading = h;
 
-  if (smoothHeading == null) smoothHeading = rawHeading;
+  rawHeading = h;
+  if (smoothHeading == null) smoothHeading = h;
 }
 
 // ================================
-// Render loop (requestAnimationFrame)
+// Render loop
 // ================================
 function render(ts) {
   rafId = requestAnimationFrame(render);
 
-  // ограничим частоту обновления, чтобы не "рвать" анимацию (60fps)
-  if (ts - lastRenderTs < 16) return;
-  lastRenderTs = ts;
+  if (ts - lastTs < MIN_FRAME_MS) return;
+  lastTs = ts;
 
   if (rawHeading == null) return;
 
@@ -158,52 +163,61 @@ function render(ts) {
   // Показ heading
   hAzEl.textContent = smoothHeading.toFixed(1);
 
-  // 1) Вращаем ЦИФЕРБЛАТ так, чтобы "N" всегда указывал на реальный север.
-  // Телефон повернули вправо => heading растёт => dial крутится влево.
+  // 1) Циферблат крутится по heading: N/E/S/W показывают реальный мир
   dialEl.style.transform = `rotate(${-smoothHeading}deg)`;
 
-  // 2) Стрелка Кыблы: относительный угол от направления устройства.
+  // 2) Стрелка крутится относительно телефона:
+  //    arrowAngle = qiblaAzimuth - heading
   if (qiblaAzimuth != null) {
-    const qiblaAngle = normalizeAngle(qiblaAzimuth - smoothHeading);
-    arrowEl.style.transform = `translate(-50%, -92%) rotate(${qiblaAngle}deg)`;
+    const arrowAngle = normalizeAngle(qiblaAzimuth - smoothHeading);
+    arrowEl.style.transform = `translate(-50%, -92%) rotate(${arrowAngle}deg)`;
   }
 }
 
 // ================================
-// Start
+// Start/Stop
 // ================================
 function startSensors() {
-  // Подписка на события (двойная — на разных браузерах по-разному)
+  if (listening) return;
+  listening = true;
+
   window.addEventListener("deviceorientationabsolute", onOrientation, true);
   window.addEventListener("deviceorientation", onOrientation, true);
 
-  // запускаем rAF
   if (!rafId) rafId = requestAnimationFrame(render);
 }
 
+function resetState() {
+  rawHeading = null;
+  smoothHeading = null;
+}
+
+// ================================
+// Main button
+// ================================
 btnStart.addEventListener("click", async () => {
   try {
     tg?.expand();
     tg?.ready();
 
     btnStart.disabled = true;
-
     setStatus("🔐 Запрашиваем доступ к датчикам…");
     await requestSensorsPermissionIfNeeded();
 
     setStatus("📍 Получаем геолокацию…");
     const pos = await getLocation();
 
-    setStatus("🧭 Вычисляем направление Кыблы…");
-    qiblaAzimuth = calculateQiblaAzimuth(
-      pos.coords.latitude,
-      pos.coords.longitude
-    );
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
 
+    setStatus("🧭 Вычисляем направление Кыблы…");
+    qiblaAzimuth = calculateQiblaAzimuth(lat, lon);
     qAzEl.textContent = qiblaAzimuth.toFixed(1);
 
-    setStatus("✅ Готово. Поворачивайте телефон — циферблат покажет реальный север, стрелка — Кыблу.");
+    resetState();
     startSensors();
+
+    setStatus("✅ Готово. Поворачивайте телефон: циферблат = стороны света, стрелка = Кыбла.");
   } catch (e) {
     console.error(e);
     setStatus("❌ Ошибка: " + (e?.message || e));
@@ -211,9 +225,7 @@ btnStart.addEventListener("click", async () => {
   }
 });
 
-// Авто: если запущено в Telegram, можно сразу подготовиться
+// Auto-ready for Telegram
 if (tg) {
-  try {
-    tg.ready();
-  } catch (_) {}
+  try { tg.ready(); } catch (_) {}
 }
