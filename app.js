@@ -1,33 +1,24 @@
-/* ============================================================
-   QIBLA COMPASS — MAX POSSIBLE ACCURACY (WEB LIMIT)
-   ------------------------------------------------------------
-   ✔ Vincenty (WGS-84) — TRUE QIBLA
-   ✔ Magnetic declination (offline approximation)
-   ✔ Correct magnetic → true heading logic
-   ✔ iOS / Android safe
-   ✔ No external APIs
-   ------------------------------------------------------------
-   ⚠ Physical limit: browser ≈ ±2–4°
-   ============================================================ */
 
-// ================================
-// Telegram WebApp
-// ================================
+/* =========================================================
+   QIBLA COMPASS — MAXIMUM CORRECT VERSION (NO EXTERNAL API)
+   ========================================================= */
+
 const tg = window.Telegram?.WebApp ?? null;
 
-// ================================
-// DOM
-// ================================
+/* ================================
+   DOM
+================================ */
 const statusEl = document.getElementById("status");
+const hintEl   = document.getElementById("hint");
 const btnStart = document.getElementById("btnStart");
 const arrowEl  = document.getElementById("arrow");
 const dialEl   = document.getElementById("dial");
 const qAzEl    = document.getElementById("qAz");
 const hAzEl    = document.getElementById("hAz");
 
-// ================================
-// Constants
-// ================================
+/* ================================
+   CONSTANTS
+================================ */
 const KAABA_LAT = 21.422487;
 const KAABA_LON = 39.826206;
 
@@ -35,17 +26,39 @@ const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
 
 const SMOOTHING = 0.12;
-const DEADZONE = 0.4;
+const JITTER = 0.25;
+const FRAME_MS = 16;
 
-// ================================
-// Math utils
-// ================================
-const norm = d => (d % 360 + 360) % 360;
-const delta = (a, b) => ((b - a + 540) % 360) - 180;
+/* ================================
+   STATE
+================================ */
+let qiblaAzimuth = null;
+let rawHeading = null;
+let smoothHeading = null;
+let lastTs = 0;
+let rafId = null;
 
-// ================================
-// TRUE QIBLA — Vincenty inverse (WGS-84)
-// ================================
+/* ================================
+   UTILS
+================================ */
+function normalize(deg) {
+  deg %= 360;
+  return deg < 0 ? deg + 360 : deg;
+}
+
+function delta(a, b) {
+  return ((b - a + 540) % 360) - 180;
+}
+
+function smooth(prev, next) {
+  const d = delta(prev, next);
+  if (Math.abs(d) < JITTER) return prev;
+  return normalize(prev + d * SMOOTHING);
+}
+
+/* ================================
+   VINCENTY (TRUE AZIMUTH)
+================================ */
 function vincenty(lat1, lon1, lat2, lon2) {
   const a = 6378137;
   const f = 1 / 298.257223563;
@@ -57,145 +70,135 @@ function vincenty(lat1, lon1, lat2, lon2) {
   const U1 = Math.atan((1 - f) * Math.tan(φ1));
   const U2 = Math.atan((1 - f) * Math.tan(φ2));
 
-  let λ = L;
-  let sinσ, cosσ, σ, sinα, cosSqα, cos2σm;
+  const sinU1 = Math.sin(U1), cosU1 = Math.cos(U1);
+  const sinU2 = Math.sin(U2), cosU2 = Math.cos(U2);
 
-  for (let i = 0; i < 100; i++) {
+  let λ = L, λp;
+  let iter = 0;
+
+  do {
     const sinλ = Math.sin(λ);
     const cosλ = Math.cos(λ);
 
-    sinσ = Math.sqrt(
-      (Math.cos(U2) * sinλ) ** 2 +
-      (Math.cos(U1) * Math.sin(U2) -
-       Math.sin(U1) * Math.cos(U2) * cosλ) ** 2
+    const sinσ = Math.sqrt(
+      (cosU2 * sinλ) ** 2 +
+      (cosU1 * sinU2 - sinU1 * cosU2 * cosλ) ** 2
     );
 
     if (!sinσ) return 0;
 
-    cosσ =
-      Math.sin(U1) * Math.sin(U2) +
-      Math.cos(U1) * Math.cos(U2) * cosλ;
+    const cosσ = sinU1 * sinU2 + cosU1 * cosU2 * cosλ;
+    const σ = Math.atan2(sinσ, cosσ);
 
-    σ = Math.atan2(sinσ, cosσ);
-    sinα = Math.cos(U1) * Math.cos(U2) * sinλ / sinσ;
-    cosSqα = 1 - sinα * sinα;
+    const sinα = cosU1 * cosU2 * sinλ / sinσ;
+    const cos2α = 1 - sinα ** 2;
 
-    cos2σm = cosSqα
-      ? cosσ - 2 * Math.sin(U1) * Math.sin(U2) / cosSqα
+    const cos2σm = cos2α
+      ? cosσ - 2 * sinU1 * sinU2 / cos2α
       : 0;
 
-    const C = f / 16 * cosSqα * (4 + f * (4 - 3 * cosSqα));
-    const λPrev = λ;
+    const C = f / 16 * cos2α * (4 + f * (4 - 3 * cos2α));
+    λp = λ;
+    λ = L + (1 - C) * f * sinα *
+      (σ + C * sinσ * (cos2σm + C * cosσ * (-1 + 2 * cos2σm ** 2)));
 
-    λ =
-      L +
-      (1 - C) *
-        f *
-        sinα *
-        (σ +
-          C *
-            sinσ *
-            (cos2σm +
-              C * cosσ * (-1 + 2 * cos2σm ** 2)));
-
-    if (Math.abs(λ - λPrev) < 1e-12) break;
-  }
+  } while (Math.abs(λ - λp) > 1e-12 && ++iter < 100);
 
   const α1 = Math.atan2(
-    Math.cos(U2) * Math.sin(λ),
-    Math.cos(U1) * Math.sin(U2) -
-      Math.sin(U1) * Math.cos(U2) * Math.cos(λ)
+    cosU2 * Math.sin(λ),
+    cosU1 * sinU2 - sinU1 * cosU2 * Math.cos(λ)
   );
 
-  return norm(α1 * RAD2DEG);
+  return normalize(α1 * RAD2DEG);
 }
 
-// ================================
-// MAGNETIC DECLINATION (offline)
-// ------------------------------------------------
-// ⚠ Это ПРИБЛИЖЕНИЕ.
-// Без WMM коэффициентов лучше нельзя.
-// Ошибка ~ ±1–2°
-// ================================
-function magneticDeclination(lat, lon) {
-  const φ = lat * DEG2RAD;
-  const λ = lon * DEG2RAD;
-  return 7.5 * Math.sin(λ) * Math.cos(φ);
-}
-
-// ================================
-// Heading extraction (MAGNETIC)
-// ================================
-let rawHeading = null;
-let smoothHeading = null;
-
+/* ================================
+   HEADING EXTRACTION
+================================ */
 function extractHeading(e) {
-  // iOS — лучший вариант
+
+  // 🥇 TRUE NORTH (iOS)
   if (typeof e.webkitCompassHeading === "number") {
-    return norm(e.webkitCompassHeading);
+    hintEl.textContent = "✔ Истинный север (максимальная точность)";
+    return normalize(e.webkitCompassHeading);
   }
 
-  // Android fallback
-  if (typeof e.alpha === "number") {
-    return norm(360 - e.alpha);
+  // 🥈 MAGNETIC NORTH (Android)
+  if (e.alpha != null) {
+    hintEl.textContent =
+      "⚠ Магнитный север. Возможна погрешность 5–15° из-за склонения и помех.";
+    return normalize(360 - e.alpha);
   }
 
   return null;
 }
 
-window.addEventListener("deviceorientation", e => {
-  const h = extractHeading(e);
-  if (h == null) return;
-  rawHeading = h;
-  smoothHeading ??= h;
-});
+/* ================================
+   RENDER LOOP
+================================ */
+function render(ts) {
+  rafId = requestAnimationFrame(render);
+  if (ts - lastTs < FRAME_MS) return;
+  lastTs = ts;
 
-// ================================
-// Render loop
-// ================================
-function loop() {
-  requestAnimationFrame(loop);
   if (rawHeading == null) return;
 
-  const d = delta(smoothHeading, rawHeading);
-  if (Math.abs(d) > DEADZONE) {
-    smoothHeading = norm(smoothHeading + d * SMOOTHING);
-  }
+  smoothHeading =
+    smoothHeading == null
+      ? rawHeading
+      : smooth(smoothHeading, rawHeading);
 
   hAzEl.textContent = smoothHeading.toFixed(1);
   dialEl.style.transform = `rotate(${-smoothHeading}deg)`;
 
-  if (window.qiblaTrue != null) {
+  if (qiblaAzimuth != null) {
+    const a = normalize(qiblaAzimuth - smoothHeading);
     arrowEl.style.transform =
-      `translate(-50%, -92%) rotate(${norm(window.qiblaTrue - smoothHeading)}deg)`;
+      `translate(-50%, -92%) rotate(${a}deg)`;
   }
 }
 
-// ================================
-// Start
-// ================================
+/* ================================
+   START
+================================ */
 btnStart.onclick = async () => {
-  btnStart.disabled = true;
-  statusEl.textContent = "📍 Определяем местоположение…";
+  try {
+    btnStart.disabled = true;
+    statusEl.textContent = "📍 Получаем координаты…";
 
-  const pos = await new Promise((res, rej) =>
-    navigator.geolocation.getCurrentPosition(res, rej, {
-      enableHighAccuracy: true,
-      timeout: 15000
-    })
-  );
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, {
+        enableHighAccuracy: true, timeout: 15000
+      })
+    );
 
-  const lat = pos.coords.latitude;
-  const lon = pos.coords.longitude;
+    qiblaAzimuth = vincenty(
+      pos.coords.latitude,
+      pos.coords.longitude,
+      KAABA_LAT,
+      KAABA_LON
+    );
 
-  const qiblaTrue = vincenty(lat, lon, KAABA_LAT, KAABA_LON);
-  const decl = magneticDeclination(lat, lon);
+    qAzEl.textContent = qiblaAzimuth.toFixed(1);
 
-  // 🔑 КЛЮЧЕВОЙ МОМЕНТ
-  window.qiblaTrue = norm(qiblaTrue + decl);
+    statusEl.textContent = "🧭 Калибруйте компас…";
 
-  qAzEl.textContent = window.qiblaTrue.toFixed(1);
-  statusEl.textContent = "✅ Готово. Держите телефон горизонтально.";
+    if (DeviceOrientationEvent?.requestPermission) {
+      const p = await DeviceOrientationEvent.requestPermission();
+      if (p !== "granted") throw new Error("Нет доступа к датчикам");
+    }
+
+    window.addEventListener("deviceorientation", e => {
+      const h = extractHeading(e);
+      if (h != null) rawHeading = h;
+    });
+
+    rafId = requestAnimationFrame(render);
+    statusEl.textContent = "✅ Готово";
+
+  } catch (e) {
+    statusEl.textContent = "❌ " + e.message;
+    btnStart.disabled = false;
+  }
 };
 
-loop();
