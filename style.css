@@ -149,7 +149,7 @@ body {
   height: 10px;
   background: rgba(255,255,255,0.22);
   border-radius: 2px;
-  opacity: 0.55;
+  opacity: 0.25;
 
   transform:
     translate(-50%, -50%)

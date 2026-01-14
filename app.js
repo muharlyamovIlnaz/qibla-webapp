@@ -1,6 +1,5 @@
-
 /* =========================================================
-   QIBLA COMPASS — MAXIMUM CORRECT VERSION (NO EXTERNAL API)
+   QIBLA COMPASS — DUAL FLOW (iOS / ANDROID SAFE)
    ========================================================= */
 
 const tg = window.Telegram?.WebApp ?? null;
@@ -35,8 +34,8 @@ const FRAME_MS = 16;
 let qiblaAzimuth = null;
 let rawHeading = null;
 let smoothHeading = null;
-let lastTs = 0;
 let rafId = null;
+let lastTs = 0;
 
 /* ================================
    UTILS
@@ -57,7 +56,7 @@ function smooth(prev, next) {
 }
 
 /* ================================
-   VINCENTY (TRUE AZIMUTH)
+   VINCENTY — TRUE AZIMUTH
 ================================ */
 function vincenty(lat1, lon1, lat2, lon2) {
   const a = 6378137;
@@ -84,7 +83,6 @@ function vincenty(lat1, lon1, lat2, lon2) {
       (cosU2 * sinλ) ** 2 +
       (cosU1 * sinU2 - sinU1 * cosU2 * cosλ) ** 2
     );
-
     if (!sinσ) return 0;
 
     const cosσ = sinU1 * sinU2 + cosU1 * cosU2 * cosλ;
@@ -117,16 +115,16 @@ function vincenty(lat1, lon1, lat2, lon2) {
 ================================ */
 function extractHeading(e) {
 
-  // 🥇 TRUE NORTH (iOS)
+  // iOS — TRUE NORTH
   if (typeof e.webkitCompassHeading === "number") {
-    hintEl.textContent = "✔ Истинный север (максимальная точность)";
+    hintEl.textContent = "✔ Истинный север (iOS)";
     return normalize(e.webkitCompassHeading);
   }
 
-  // 🥈 MAGNETIC NORTH (Android)
+  // Android — MAGNETIC NORTH
   if (e.alpha != null) {
     hintEl.textContent =
-      "⚠ Магнитный север. Возможна погрешность 5–15° из-за склонения и помех.";
+      "⚠ Магнитный север (Android). Возможна локальная погрешность.";
     return normalize(360 - e.alpha);
   }
 
@@ -159,46 +157,68 @@ function render(ts) {
 }
 
 /* ================================
-   START
+   START AFTER PERMISSION
 ================================ */
-btnStart.onclick = async () => {
-  try {
-    btnStart.disabled = true;
-    statusEl.textContent = "📍 Получаем координаты…";
+async function startAfterPermission() {
+  statusEl.textContent = "📍 Получаем координаты…";
 
-    const pos = await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, {
-        enableHighAccuracy: true, timeout: 15000
-      })
-    );
+  const pos = await new Promise((res, rej) =>
+    navigator.geolocation.getCurrentPosition(res, rej, {
+      enableHighAccuracy: true, timeout: 15000
+    })
+  );
 
-    qiblaAzimuth = vincenty(
-      pos.coords.latitude,
-      pos.coords.longitude,
-      KAABA_LAT,
-      KAABA_LON
-    );
+  qiblaAzimuth = vincenty(
+    pos.coords.latitude,
+    pos.coords.longitude,
+    KAABA_LAT,
+    KAABA_LON
+  );
 
-    qAzEl.textContent = qiblaAzimuth.toFixed(1);
+  qAzEl.textContent = qiblaAzimuth.toFixed(1);
+  statusEl.textContent = "🧭 Калибруйте компас…";
 
-    statusEl.textContent = "🧭 Калибруйте компас…";
+  window.addEventListener("deviceorientation", e => {
+    const h = extractHeading(e);
+    if (h != null) rawHeading = h;
+  }, true);
 
-    if (DeviceOrientationEvent?.requestPermission) {
-      const p = await DeviceOrientationEvent.requestPermission();
-      if (p !== "granted") throw new Error("Нет доступа к датчикам");
+  rafId = requestAnimationFrame(render);
+  statusEl.textContent = "✅ Готово";
+}
+
+/* ================================
+   BUTTON — DUAL FLOW
+================================ */
+btnStart.addEventListener("click", () => {
+
+  btnStart.disabled = true;
+
+  // 🍎 iOS STRICT FLOW
+  if (
+    typeof DeviceOrientationEvent !== "undefined" &&
+    typeof DeviceOrientationEvent.requestPermission === "function"
+  ) {
+    try {
+      DeviceOrientationEvent.requestPermission()
+        .then(p => {
+          if (p !== "granted") {
+            throw new Error("Нет доступа к датчикам");
+          }
+          startAfterPermission();
+        })
+        .catch(err => {
+          statusEl.textContent = "❌ Нет доступа к датчикам";
+          btnStart.disabled = false;
+          console.error(err);
+        });
+    } catch (e) {
+      statusEl.textContent = "❌ Ошибка доступа к датчикам";
+      btnStart.disabled = false;
     }
-
-    window.addEventListener("deviceorientation", e => {
-      const h = extractHeading(e);
-      if (h != null) rawHeading = h;
-    });
-
-    rafId = requestAnimationFrame(render);
-    statusEl.textContent = "✅ Готово";
-
-  } catch (e) {
-    statusEl.textContent = "❌ " + e.message;
-    btnStart.disabled = false;
+    return;
   }
-};
 
+  // 🤖 ANDROID FLOW
+  startAfterPermission();
+});
