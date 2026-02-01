@@ -115,21 +115,22 @@ function vincenty(lat1, lon1, lat2, lon2) {
 ================================ */
 function extractHeading(e) {
 
-  // iOS — TRUE NORTH
+  // 🍎 iOS — TRUE NORTH
   if (typeof e.webkitCompassHeading === "number") {
     hintEl.textContent = "✔ Истинный север (iOS)";
     return normalize(e.webkitCompassHeading);
   }
 
-  // Android — MAGNETIC NORTH
-  if (e.alpha != null) {
+  // 🤖 Android — deviceorientation (ALREADY CLOCKWISE FROM NORTH)
+  if (typeof e.alpha === "number") {
     hintEl.textContent =
       "⚠ Магнитный север (Android). Возможна локальная погрешность.";
-    return normalize(360 - e.alpha);
+    return normalize(e.alpha);
   }
 
   return null;
 }
+
 
 /* ================================
    RENDER LOOP
