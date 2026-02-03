@@ -1,168 +1,93 @@
-/* Minimal Qibla Compass for Telegram Mini App
-   - Gets location (GPS)
-   - Computes Qibla bearing to Kaaba
-   - Reads compass heading from deviceorientation
-   - Rotates arrow to point to Qibla
-*/
+const dial = document.getElementById("dial");
+const degEl = document.getElementById("deg");
+const errEl = document.getElementById("err");
+const btn = document.getElementById("enable");
 
-const tg = window.Telegram?.WebApp ?? null;
+let started = false;
+let last = null;
 
-const KAABA_LAT = 21.422487;
-const KAABA_LON = 39.826206;
-
-const btnStart = document.getElementById("btnStart");
-const arrowEl  = document.getElementById("arrow");
-const qAzEl    = document.getElementById("qAz");
-const hAzEl    = document.getElementById("hAz");
-const locEl    = document.getElementById("loc");
-const statEl   = document.getElementById("stat");
-const subEl    = document.getElementById("sub");
-
-const DEG2RAD = Math.PI / 180;
-const RAD2DEG = 180 / Math.PI;
-
-let qiblaAzimuth = null;     // 0..360 (true north)
-let heading = null;          // 0..360 (device compass heading)
-let hasOrientation = false;
-
-function setStatus(s) { statEl.textContent = "Статус: " + s; }
-
-function clamp360(deg) {
-  let x = deg % 360;
-  if (x < 0) x += 360;
-  return x;
+function normalize(d) {
+  d = d % 360;
+  return d < 0 ? d + 360 : d;
 }
 
-// Bearing from (lat1,lon1) to (lat2,lon2) relative to true north
-function bearingTo(lat1, lon1, lat2, lon2) {
-  const φ1 = lat1 * DEG2RAD;
-  const φ2 = lat2 * DEG2RAD;
-  const Δλ = (lon2 - lon1) * DEG2RAD;
-
-  const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-
-  const θ = Math.atan2(y, x) * RAD2DEG;
-  return clamp360(θ);
+function screenAngle() {
+  if (screen.orientation && typeof screen.orientation.angle === "number") return screen.orientation.angle;
+  if (typeof window.orientation === "number") return window.orientation; // старый iOS
+  return 0;
 }
 
-function updateUI() {
-  if (qiblaAzimuth == null) return;
-
-  qAzEl.textContent = qiblaAzimuth.toFixed(1) + "°";
-
-  if (heading == null) {
-    hAzEl.textContent = "—";
-    return;
-  }
-
-  hAzEl.textContent = heading.toFixed(1) + "°";
-
-  // Rotate arrow: when phone faces north (heading=0), arrow points to qiblaAzimuth
-  const rotation = clamp360(qiblaAzimuth - heading);
-  arrowEl.style.transform = `translate(-50%, -85%) rotate(${rotation}deg)`;
+// мягко сглаживаем (чтобы не дергалось)
+function smooth(prev, next, k = 0.18) {
+  if (prev == null) return next;
+  let diff = ((next - prev + 540) % 360) - 180; // кратчайшая дуга
+  return normalize(prev + diff * k);
 }
 
-function getScreenAngle() {
-  // 0 / 90 / 180 / -90
-  const a = (screen.orientation && typeof screen.orientation.angle === "number")
-    ? screen.orientation.angle
-    : (typeof window.orientation === "number" ? window.orientation : 0);
-  return a || 0;
+function applyHeading(h) {
+  h = normalize(h);
+  last = smooth(last, h);
+
+  // фиксированная стрелка; крутим круг в обратную сторону
+  dial.style.transform = `rotate(${-last}deg)`;
+  degEl.textContent = String(Math.round(last));
 }
 
 function onOrientation(e) {
-  hasOrientation = true;
-
-  // iOS Safari provides webkitCompassHeading (0..360, already relative to true north)
-  if (typeof e.webkitCompassHeading === "number" && !Number.isNaN(e.webkitCompassHeading)) {
-    heading = clamp360(e.webkitCompassHeading);
-    updateUI();
+  // iOS (Safari/WebView): есть webkitCompassHeading
+  if (typeof e.webkitCompassHeading === "number") {
+    applyHeading(e.webkitCompassHeading);
     return;
   }
 
-  // Generic DeviceOrientationEvent:
-  // alpha is 0..360 (rotation around z-axis). On many Android devices it acts like compass.
-  // Need to compensate for screen orientation.
-  if (typeof e.alpha === "number" && !Number.isNaN(e.alpha)) {
-    const screenAngle = getScreenAngle();
-    heading = clamp360(e.alpha + screenAngle);
-    updateUI();
-    return;
+  // Android/прочие: alpha
+  if (typeof e.alpha === "number") {
+    const raw = 360 - e.alpha;
+    const corrected = raw + screenAngle();
+    applyHeading(corrected);
   }
 }
 
-async function requestMotionPermissionIfNeeded() {
-  // iOS 13+ requires user gesture + explicit permission
-  if (typeof DeviceOrientationEvent !== "undefined" &&
-      typeof DeviceOrientationEvent.requestPermission === "function") {
-    const res = await DeviceOrientationEvent.requestPermission();
-    if (res !== "granted") throw new Error("Доступ к датчикам отклонён");
-  }
+function showError(msg) {
+  errEl.textContent = msg;
 }
 
-function startOrientation() {
+function start() {
+  if (started) return;
+  started = true;
+
+  showError("");
+
+  window.addEventListener("deviceorientationabsolute", onOrientation, true);
   window.addEventListener("deviceorientation", onOrientation, true);
+
+  // если через 1.2 сек ничего не пришло — скажем пользователю
+  setTimeout(() => {
+    if (degEl.textContent === "--") {
+      showError("Нет данных компаса. Проверь разрешение на датчики и что устройство поддерживает компас.");
+    }
+  }, 1200);
 }
 
-function stopOrientation() {
-  window.removeEventListener("deviceorientation", onOrientation, true);
-}
+async function enable() {
+  showError("");
 
-function getLocation() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) reject(new Error("Геолокация не поддерживается"));
-    navigator.geolocation.getCurrentPosition(
-      pos => resolve(pos),
-      err => reject(err),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  });
-}
-
-async function start() {
   try {
-    btnStart.disabled = true;
-    btnStart.textContent = "Запускаю…";
-
-    tg?.ready();
-    tg?.expand();
-
-    setStatus("запрос разрешений");
-    await requestMotionPermissionIfNeeded();
-
-    setStatus("получаю геолокацию");
-    const pos = await getLocation();
-
-    const lat = pos.coords.latitude;
-    const lon = pos.coords.longitude;
-    locEl.textContent = `Локация: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-
-    qiblaAzimuth = bearingTo(lat, lon, KAABA_LAT, KAABA_LON);
-    subEl.textContent = "Держи телефон горизонтально — стрелка покажет направление";
-    setStatus("ожидаю компас");
-
-    stopOrientation();
-    startOrientation();
-
-    // Если компас не пришёл за 2 сек — покажем подсказку
-    setTimeout(() => {
-      if (!hasOrientation) {
-        setStatus("компас недоступен (попробуй другой браузер/устройство)");
+    // iOS 13+: permission только по клику
+    if (
+      typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function"
+    ) {
+      const res = await DeviceOrientationEvent.requestPermission();
+      if (res !== "granted") {
+        showError("Доступ к датчикам не разрешён. Компас не сможет работать.");
+        return;
       }
-    }, 2000);
-
-    updateUI();
+    }
+    start();
   } catch (e) {
-    console.error(e);
-    setStatus("ошибка: " + (e?.message || e));
-    btnStart.disabled = false;
-    btnStart.textContent = "Старт";
-    return;
+    showError("Ошибка включения: " + (e && e.message ? e.message : String(e)));
   }
-
-  btnStart.textContent = "Перезапустить";
-  btnStart.disabled = false;
 }
 
-btnStart.addEventListener("click", start);
+btn.addEventListener("click", enable, { passive: true });

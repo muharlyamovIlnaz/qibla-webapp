@@ -2,43 +2,37 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-    <title>Qibla</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>Compass</title>
     <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-<main class="wrap">
-    <header class="top">
-        <div class="title">🧭 Направление на Каабу</div>
-        <div class="sub" id="sub">Нажми “Старт”, дай доступ к геолокации и компасу</div>
-    </header>
 
-    <section class="card">
-        <div class="dial">
-            <div class="ticks"></div>
-            <div class="north">N</div>
-            <div class="arrow" id="arrow"></div>
-            <div class="centerDot"></div>
+<div class="card">
+    <h1>Компас</h1>
+
+    <div class="compass">
+        <!-- Вращаемый круг -->
+        <div id="dial" class="dial">
+            <div class="mark n">N</div>
+            <div class="mark e">E</div>
+            <div class="mark s">S</div>
+            <div class="mark w">W</div>
         </div>
 
-        <div class="info">
-            <div class="row"><span>Кибла (азимут):</span> <b id="qAz">—</b></div>
-            <div class="row"><span>Твой курс:</span> <b id="hAz">—</b></div>
-            <div class="row small" id="loc">Локация: —</div>
-            <div class="row small" id="stat">Статус: ожидание</div>
-        </div>
+        <!-- Невращаемая стрелка на север -->
+        <div class="needle"></div>
+    </div>
 
-        <button class="btn" id="btnStart">Старт</button>
-    </section>
+    <div class="row">
+        <span>Heading:</span>
+        <span id="deg">--</span><span>°</span>
+    </div>
 
-    <footer class="foot">
-        <div class="hint">
-            Если стрелка “пляшет” — держи телефон <b>горизонтально</b> и подальше от металла/магнитов.
-        </div>
-    </footer>
-</main>
+    <button id="enable">Включить компас</button>
+    <div id="err" class="err"></div>
+</div>
 
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="app.js"></script>
+<script src="compass.js"></script>
 </body>
 </html>
