@@ -5,49 +5,56 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
     <title>Qibla Compass</title>
 
-    <!-- ВАЖНО: меняй версию тут и в app.js, чтобы Telegram не кешировал старое -->
-    <link rel="stylesheet" href="style.css?v=1.0.0">
-    <script src="app.js?v=1.0.0" defer></script>
+    <!-- ВАЖНО: меняй версию тут и в app.js -->
+    <link rel="stylesheet" href="style.css?v=1.1.0">
+    <script src="app.js?v=1.1.0" defer></script>
 </head>
 <body>
+<div class="stars"></div>
+<div class="stars2"></div>
+
 <div class="card">
     <div class="header">
-        <div class="title">Компас <span id="ver" class="ver">v—</span></div>
-        <div id="sub" class="sub">Получаем данные…</div>
+        <div class="title">Кыйбла <span id="ver" class="ver">v—</span></div>
+        <div id="sub" class="sub">Поверни телефон — совмести белую стрелку с зелёной.</div>
     </div>
 
-    <div class="compass">
-        <!-- Вращаемый диск (N/E/S/W + маркер Кыблы) -->
+    <div id="compass" class="compass">
+        <!-- Вращаемый диск -->
         <div id="dial" class="dial">
+            <div class="ticks" aria-hidden="true"></div>
+
             <div class="mark n">N</div>
             <div class="mark e">E</div>
             <div class="mark s">S</div>
             <div class="mark w">W</div>
 
-            <!-- Маркер направления Кыблы (вращается внутри диска по bearing) -->
+            <!-- Маркер направления Кыйблы (вращается по bearing) -->
             <div id="qiblaMark" class="qiblaMark" aria-label="Qibla marker"></div>
         </div>
 
-        <!-- Фиксированный указатель сверху (куда “смотрит” телефон) -->
-        <div class="pointer" aria-hidden="true"></div>
+        <!-- Фиксированная стрелка (куда “смотрит” телефон) -->
+        <div class="northPointer" aria-hidden="true"></div>
+
         <div class="centerDot" aria-hidden="true"></div>
     </div>
 
-    <div class="row">
-        <span>Heading:</span>
-        <span><span id="heading">--</span>°</span>
-    </div>
-    <div class="row">
-        <span>Кыбла:</span>
-        <span><span id="qibla">--</span>°</span>
+    <div class="meta">
+        <div class="row">
+            <span>Азимут компаса</span>
+            <span><span id="heading">--</span>°</span>
+        </div>
+        <div class="row">
+            <span>Азимут кыблы</span>
+            <span><span id="qibla">--</span>°</span>
+        </div>
     </div>
 
-    <div id="ok" class="ok hidden">✓ Направление Кыблы определено</div>
+    <div id="hint" class="hint">Определи геолокацию и вращай телефон.</div>
     <div id="err" class="err"></div>
 
-    <!-- Кнопка появится только если iOS попросит permission по клику -->
+    <!-- iOS: появится только если нужно разрешение -->
     <button id="btn" class="btn hidden">Разрешить датчики</button>
-
     <button id="locBtn" class="btn secondary">Обновить геолокацию</button>
 </div>
 </body>
