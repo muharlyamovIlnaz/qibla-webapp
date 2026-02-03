@@ -1,7 +1,7 @@
 // =========================
 // VERSION (меняй при каждом деплое)
 // =========================
-const APP_VERSION = "1.2.1";
+const APP_VERSION = "1.2.2";
 
 // =========================
 // KAABA coords
@@ -77,12 +77,15 @@ function bearingDeg(lat1, lon1, lat2, lon2){
 let qiblaBearing = null;   // azimuth to Kaaba (0..360)
 let headingTarget = null;  // target heading
 let headingCurrent = null; // rendered heading
+let headingFiltered = null; // сглаженный target
 
-// Smoothness (оставляем как было по смыслу)
-const SMOOTH_MIN = 0.08;   // плавно на мелких движениях (убирает дрожь)
-const SMOOTH_MAX = 0.22;   // быстрее на больших поворотах (чтобы не "ватно")
-const STEP_LIMIT = 5.0;    // чуть ниже, чтобы меньше резких скачков
-const DEADZONE = 0.8;      // градусы: меньше — игнорируем (убирает микродрожь)
+
+const TARGET_SMOOTH = 0.18;
+const DEADZONE = 0.9;
+const STEP_LIMIT = 3.6;
+const SMOOTH_MIN = 0.06;
+const SMOOTH_MAX = 0.20;
+
 const ALIGN_TOL = 3.0;
 
 
@@ -132,11 +135,26 @@ locBtn.addEventListener("click", requestLocation);
 // =========================
 function setHeadingTarget(h){
   h = normalize360(h + screenAngle());
-  headingTarget = h;
-  if (headingCurrent == null) headingCurrent = h;
+
+  // инициализация
+  if (headingFiltered == null) headingFiltered = h;
+
+  // сглаживание по окружности (важно! углы по кругу)
+  const delta = shortestDelta(headingFiltered, h);
+  headingFiltered = normalize360(headingFiltered + delta * TARGET_SMOOTH);
+
+  headingTarget = headingFiltered;
+
+  if (headingCurrent == null) headingCurrent = headingTarget;
 }
 
+
+let seenAbsolute = false;
+
 function onOrientation(e){
+  if (e.type === "deviceorientationabsolute") seenAbsolute = true;
+  if (e.type === "deviceorientation" && seenAbsolute) return;
+
   if (typeof e.webkitCompassHeading === "number") {
     setHeadingTarget(e.webkitCompassHeading);
     return;
@@ -146,9 +164,15 @@ function onOrientation(e){
   }
 }
 
+
 function startListening(){
   window.addEventListener("deviceorientationabsolute", onOrientation, true);
   window.addEventListener("deviceorientation", onOrientation, true);
+  window.addEventListener("orientationchange", () => {
+    headingFiltered = null;
+    headingCurrent = null;
+  });
+
 
   setTimeout(() => {
     if (headingEl.textContent === "--") {
