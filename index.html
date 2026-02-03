@@ -2,9 +2,10 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <title>Compass</title>
     <link rel="stylesheet" href="style.css">
+    <script src="compass.js" defer></script>
 </head>
 <body>
 <div class="card">
@@ -20,20 +21,11 @@
         <div class="needle"></div>
     </div>
 
-    <div class="row">
-        <div>Heading:</div>
-        <div><span id="deg">--</span>°</div>
-    </div>
-
-    <div class="row small">
-        <div>Source:</div>
-        <div id="src">-</div>
-    </div>
+    <div class="row"><span>Heading:</span><span><span id="deg">--</span>°</span></div>
+    <div class="row small"><span>Status:</span><span id="status">HTML ok</span></div>
 
     <button id="enable">Включить компас</button>
     <div id="err" class="err"></div>
 </div>
-
-<script src="compass.js"></script>
 </body>
 </html>
