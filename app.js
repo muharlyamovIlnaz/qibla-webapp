@@ -1,7 +1,7 @@
 // =========================
 // VERSION (меняй при каждом деплое)
 // =========================
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 
 // =========================
 // KAABA coords
@@ -79,9 +79,12 @@ let headingTarget = null;  // target heading
 let headingCurrent = null; // rendered heading
 
 // Smoothness (оставляем как было по смыслу)
-const SMOOTH = 0.12;
-const STEP_LIMIT = 6.0;
+const SMOOTH_MIN = 0.08;   // плавно на мелких движениях (убирает дрожь)
+const SMOOTH_MAX = 0.22;   // быстрее на больших поворотах (чтобы не "ватно")
+const STEP_LIMIT = 5.0;    // чуть ниже, чтобы меньше резких скачков
+const DEADZONE = 0.8;      // градусы: меньше — игнорируем (убирает микродрожь)
 const ALIGN_TOL = 3.0;
+
 
 // =========================
 // Location
@@ -195,10 +198,19 @@ function render(){
   if (headingTarget != null && headingCurrent != null) {
     let d = shortestDelta(headingCurrent, headingTarget);
 
+    // deadzone: мелкую дрожь игнорируем
+    if (Math.abs(d) < DEADZONE) d = 0;
+
+    // clamp рывков
     if (d > STEP_LIMIT) d = STEP_LIMIT;
     if (d < -STEP_LIMIT) d = -STEP_LIMIT;
 
-    headingCurrent = normalize360(headingCurrent + d * SMOOTH);
+    // адаптивное сглаживание: чем больше разница, тем быстрее догоняем
+    const t = Math.min(1, Math.abs(d) / STEP_LIMIT); // 0..1
+    const smooth = SMOOTH_MIN + (SMOOTH_MAX - SMOOTH_MIN) * t;
+
+    headingCurrent = normalize360(headingCurrent + d * smooth);
+
 
     dial.style.transform = `rotate(${-headingCurrent}deg)`;
     headingEl.textContent = String(Math.round(headingCurrent));
