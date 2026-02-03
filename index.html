@@ -2,30 +2,53 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <title>Compass</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="app.js" defer></script>
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+    <title>Qibla Compass</title>
+
+    <!-- ВАЖНО: меняй версию тут и в app.js, чтобы Telegram не кешировал старое -->
+    <link rel="stylesheet" href="style.css?v=1.0.0">
+    <script src="app.js?v=1.0.0" defer></script>
 </head>
 <body>
 <div class="card">
-    <div class="title">Компас</div>
+    <div class="header">
+        <div class="title">Компас <span id="ver" class="ver">v—</span></div>
+        <div id="sub" class="sub">Получаем данные…</div>
+    </div>
 
     <div class="compass">
+        <!-- Вращаемый диск (N/E/S/W + маркер Кыблы) -->
         <div id="dial" class="dial">
             <div class="mark n">N</div>
             <div class="mark e">E</div>
             <div class="mark s">S</div>
             <div class="mark w">W</div>
+
+            <!-- Маркер направления Кыблы (вращается внутри диска по bearing) -->
+            <div id="qiblaMark" class="qiblaMark" aria-label="Qibla marker"></div>
         </div>
-        <div class="needle"></div>
+
+        <!-- Фиксированный указатель сверху (куда “смотрит” телефон) -->
+        <div class="pointer" aria-hidden="true"></div>
+        <div class="centerDot" aria-hidden="true"></div>
     </div>
 
-    <div class="row"><span>Heading:</span><span><span id="deg">--</span>°</span></div>
-    <div class="row small"><span>Status:</span><span id="status">HTML ok</span></div>
+    <div class="row">
+        <span>Heading:</span>
+        <span><span id="heading">--</span>°</span>
+    </div>
+    <div class="row">
+        <span>Кыбла:</span>
+        <span><span id="qibla">--</span>°</span>
+    </div>
 
-    <button id="enable">Включить компас</button>
+    <div id="ok" class="ok hidden">✓ Направление Кыблы определено</div>
     <div id="err" class="err"></div>
+
+    <!-- Кнопка появится только если iOS попросит permission по клику -->
+    <button id="btn" class="btn hidden">Разрешить датчики</button>
+
+    <button id="locBtn" class="btn secondary">Обновить геолокацию</button>
 </div>
 </body>
 </html>
