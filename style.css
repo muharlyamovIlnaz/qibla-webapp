@@ -1,14 +1,14 @@
 :root{
   --bg0:#060a14;
   --bg1:#0b1222;
-
   --card:rgba(255,255,255,.06);
   --stroke:rgba(255,255,255,.14);
-
   --text:rgba(255,255,255,.92);
   --muted:rgba(255,255,255,.62);
+  --muted2:rgba(255,255,255,.40);
 
   --ok:#3ddc97;
+  --ok2:#19c37d;
   --err:#ffb4b4;
 
   --radius:20px;
@@ -23,77 +23,46 @@ body{
   place-items:center;
   color:var(--text);
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
-  background: radial-gradient(900px 600px at 50% 20%, #1a2b54 0%, var(--bg1) 55%, var(--bg0) 100%);
+  background:
+    radial-gradient(900px 600px at 50% 20%, #1a2b54 0%, var(--bg1) 55%, var(--bg0) 100%);
   overflow:hidden;
-  position:relative;
 }
 
-/* ---------------------------
-   Background: stars + constellations
---------------------------- */
-.stars, .stars2, .constellations{
+/* ---- Stars background (2 layers) ---- */
+.stars, .stars2{
   position:fixed;
-  inset:0;
+  inset:-200px;
   pointer-events:none;
-  z-index:0;
-}
-
-.stars{
-  opacity:.30;
   background-repeat:repeat;
+  opacity:.55;
+  transform: translateZ(0);
+}
+.stars{
   background-image:
-    radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,.70) 50%, transparent 51%),
+    radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,.65) 50%, transparent 51%),
     radial-gradient(1px 1px at 160px 90px, rgba(255,255,255,.55) 50%, transparent 51%),
     radial-gradient(1px 1px at 280px 210px, rgba(255,255,255,.45) 50%, transparent 51%),
-    radial-gradient(2px 2px at 420px 150px, rgba(255,255,255,.55) 50%, transparent 51%),
+    radial-gradient(2px 2px at 420px 150px, rgba(255,255,255,.50) 50%, transparent 51%),
     radial-gradient(1px 1px at 520px 260px, rgba(255,255,255,.40) 50%, transparent 51%);
   background-size: 600px 340px;
-  filter: blur(.15px);
-  animation: drift 32s linear infinite;
+  filter: blur(.2px);
+  animation: drift 30s linear infinite;
 }
-
 .stars2{
-  opacity:.18;
-  background-repeat:repeat;
+  opacity:.35;
   background-image:
-    radial-gradient(1px 1px at 40px 60px, rgba(255,255,255,.55) 50%, transparent 51%),
-    radial-gradient(1px 1px at 140px 200px, rgba(255,255,255,.45) 50%, transparent 51%),
+    radial-gradient(1px 1px at 40px 60px, rgba(255,255,255,.45) 50%, transparent 51%),
+    radial-gradient(1px 1px at 140px 200px, rgba(255,255,255,.35) 50%, transparent 51%),
     radial-gradient(2px 2px at 360px 260px, rgba(255,255,255,.40) 50%, transparent 51%),
-    radial-gradient(1px 1px at 520px 120px, rgba(255,255,255,.45) 50%, transparent 51%);
+    radial-gradient(1px 1px at 520px 120px, rgba(255,255,255,.35) 50%, transparent 51%);
   background-size: 640px 420px;
-  filter: blur(.2px);
-  animation: drift2 56s linear infinite;
+  animation: drift2 55s linear infinite;
 }
-
-/* Light “constellations”: dots + thin lines */
-.constellations{
-  opacity:.12;
-  background-repeat:repeat;
-  background-size: 900px 600px;
-  filter: blur(.2px);
-  animation: drift3 80s linear infinite;
-  background-image:
-    radial-gradient(2px 2px at 120px 160px, rgba(255,255,255,.55) 50%, transparent 51%),
-    radial-gradient(2px 2px at 220px 220px, rgba(255,255,255,.45) 50%, transparent 51%),
-    radial-gradient(2px 2px at 310px 180px, rgba(255,255,255,.50) 50%, transparent 51%),
-    linear-gradient(25deg, transparent 0 46%, rgba(255,255,255,.16) 46% 46.6%, transparent 46.6% 100%),
-
-    radial-gradient(2px 2px at 560px 120px, rgba(255,255,255,.45) 50%, transparent 51%),
-    radial-gradient(2px 2px at 640px 180px, rgba(255,255,255,.40) 50%, transparent 51%),
-    radial-gradient(2px 2px at 710px 140px, rgba(255,255,255,.48) 50%, transparent 51%),
-    linear-gradient(-18deg, transparent 0 52%, rgba(255,255,255,.14) 52% 52.6%, transparent 52.6% 100%);
-}
-
-@keyframes drift { from{transform:translate(-40px,-30px)} to{transform:translate(40px,30px)} }
+@keyframes drift{ from{transform:translate(-40px,-30px)} to{transform:translate(40px,30px)} }
 @keyframes drift2{ from{transform:translate(30px,-20px)} to{transform:translate(-30px,20px)} }
-@keyframes drift3{ from{transform:translate(20px,10px)} to{transform:translate(-20px,-10px)} }
 
-/* ---------------------------
-   Card
---------------------------- */
+/* ---- Card ---- */
 .card{
-  position:relative;
-  z-index:2;
   width:min(440px, 92vw);
   padding:16px;
   border:1px solid var(--stroke);
@@ -104,7 +73,6 @@ body{
 }
 
 .header{ margin-bottom:10px; }
-
 .title{
   font-size:22px;
   font-weight:900;
@@ -112,7 +80,6 @@ body{
   align-items:baseline;
   gap:10px;
 }
-
 .ver{
   font-size:12px;
   font-weight:800;
@@ -121,7 +88,6 @@ body{
   border:1px solid rgba(255,255,255,.12);
   border-radius:999px;
 }
-
 .sub{
   margin-top:6px;
   color:var(--muted);
@@ -129,9 +95,7 @@ body{
   line-height:1.35;
 }
 
-/* ---------------------------
-   Compass
---------------------------- */
+/* ---- Compass ---- */
 .compass{
   width:310px;
   height:310px;
@@ -140,7 +104,8 @@ body{
   border:1px solid rgba(255,255,255,.16);
   position:relative;
   overflow:hidden;
-  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.10), rgba(255,255,255,.03));
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255,255,255,.10), rgba(255,255,255,.03));
   transition: box-shadow .25s ease, border-color .25s ease;
 }
 
@@ -152,7 +117,6 @@ body{
     0 0 24px rgba(61,220,151,.40),
     0 0 60px rgba(61,220,151,.20);
 }
-
 .compass.aligned::after{
   content:"";
   position:absolute;
@@ -173,80 +137,45 @@ body{
   will-change:transform;
 }
 
-/* ticks like watch dial: 60 small + 12 big, ring only */
+/* Decorative ticks layer that rotates with dial */
 .ticks{
   position:absolute;
   inset:0;
   border-radius:50%;
-  z-index:1;
-  opacity:.90;
   background:
-    /* minute ticks */
+    /* major ticks */
     repeating-conic-gradient(
-      from -90deg,
-      rgba(255,255,255,.16) 0deg 0.55deg,
-      transparent 0.55deg 6deg
+      from 0deg,
+      rgba(255,255,255,.22) 0deg 1deg,
+      transparent 1deg 15deg
     ),
-    /* hour ticks */
+    /* minor ticks */
     repeating-conic-gradient(
-      from -90deg,
-      rgba(255,255,255,.30) 0deg 1.25deg,
-      transparent 1.25deg 30deg
+      from 0deg,
+      rgba(255,255,255,.10) 0deg .6deg,
+      transparent .6deg 6deg
     );
-
-  /* keep only ring band, keep center clean */
-  -webkit-mask: radial-gradient(circle,
-    transparent 0 60%,
-    #000 61% 75%,
-    transparent 76% 100%);
-          mask: radial-gradient(circle,
-    transparent 0 60%,
-    #000 61% 75%,
-    transparent 76% 100%);
-}
-
-/* Realistic world map layer (inside dial, rotates with it) */
-.earth{
-  position:absolute;
-  inset:0;
-  border-radius:50%;
-  z-index:0;
-  display:grid;
-  place-items:center;
-  opacity:.38; /* overall visibility; tweak 0.25..0.45 */
-  -webkit-mask: radial-gradient(circle,
-    transparent 0 22%,
-    #000 23% 58%,
-    transparent 59% 100%);
-          mask: radial-gradient(circle,
-    transparent 0 22%,
-    #000 23% 58%,
-    transparent 59% 100%);
-}
-
-.earth svg{
-  width:92%;
-  height:auto;
-  opacity:.55;
+  -webkit-mask: radial-gradient(circle, transparent 0 58%, #000 59% 100%);
+          mask: radial-gradient(circle, transparent 0 58%, #000 59% 100%);
+  opacity:.85;
 }
 
 /* Cardinal letters */
 .mark{
   position:absolute;
-  z-index:3;
   font-weight:900;
   font-size:20px;
   color:rgba(255,255,255,.92);
   text-shadow: 0 10px 18px rgba(0,0,0,.35);
 }
+.n{top:10px;left:50%;transform:translateX(-50%)}
+.s{bottom:10px;left:50%;transform:translateX(-50%)}
+.e{right:12px;top:50%;transform:translateY(-50%)}
+.w{left:12px;top:50%;transform:translateY(-50%)}
 
-.n{ top:10px; left:50%; transform:translateX(-50%); }
-.s{ bottom:10px; left:50%; transform:translateX(-50%); }
-.e{ right:12px; top:50%; transform:translateY(-50%); }
-.w{ left:12px; top:50%; transform:translateY(-50%); }
-
-/* Pointer + qibla marker */
-.northPointer, .qiblaMark{
+/* Pointer (fixed) and Qibla marker must be same radius */
+.northPointer,
+.qiblaMark{
   position:absolute;
   left:50%;
   top:50%;
@@ -255,10 +184,7 @@ body{
   will-change:transform;
 }
 
-.northPointer{ z-index:5; }
-.qiblaMark{ z-index:4; }
-
-/* fixed white pointer (same radius as qibla) */
+/* fixed white pointer */
 .northPointer::before{
   content:"";
   position:absolute;
@@ -272,7 +198,7 @@ body{
   filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
-/* green qibla marker (same radius) */
+/* green qibla marker (same radius!) */
 .qiblaMark::before{
   content:"";
   position:absolute;
@@ -286,6 +212,7 @@ body{
   filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
 }
 
+/* Center dot */
 .centerDot{
   position:absolute;
   left:50%;
@@ -295,14 +222,13 @@ body{
   border-radius:50%;
   background:rgba(255,255,255,.92);
   box-shadow: 0 10px 18px rgba(0,0,0,.35);
-  z-index:6;
 }
 
-/* ---------------------------
-   Meta + Hint
---------------------------- */
-.meta{ margin-top:2px; padding-top:8px; }
-
+/* Meta rows */
+.meta{
+  margin-top:2px;
+  padding-top:8px;
+}
 .row{
   display:flex;
   justify-content:space-between;
@@ -312,6 +238,7 @@ body{
   font-variant-numeric:tabular-nums;
 }
 
+/* Hint text (no border) */
 .hint{
   margin-top:10px;
   color: rgba(255,255,255,.86);
@@ -321,7 +248,9 @@ body{
   text-align:center;
   text-shadow: 0 10px 18px rgba(0,0,0,.30);
 }
-.hint.good{ color: var(--ok); }
+.hint.good{
+  color: var(--ok);
+}
 
 .err{
   margin-top:8px;
@@ -333,9 +262,6 @@ body{
   text-align:center;
 }
 
-/* ---------------------------
-   Buttons
---------------------------- */
 .btn{
   width:100%;
   margin-top:12px;
@@ -353,4 +279,4 @@ body{
   font-weight:800;
 }
 
-.hidden{ display:none; }
+.hidden{display:none}

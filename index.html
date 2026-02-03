@@ -6,14 +6,12 @@
     <title>Qibla Compass</title>
 
     <!-- ВАЖНО: меняй версию тут и в app.js -->
-    <link rel="stylesheet" href="style.css?v=1.2.0">
-    <script src="app.js?v=1.2.0" defer></script>
+    <link rel="stylesheet" href="style.css?v=1.2.1">
+    <script src="app.js?v=1.2.1" defer></script>
 </head>
 <body>
-<!-- Атмосфера: звезды + созвездия -->
 <div class="stars"></div>
 <div class="stars2"></div>
-<div class="constellations"></div>
 
 <div class="card">
     <div class="header">
@@ -26,87 +24,18 @@
         <div id="dial" class="dial">
             <div class="ticks" aria-hidden="true"></div>
 
-            <!-- Реалистичная карта мира (очень прозрачная), крутится вместе с dial -->
-            <div class="earth" aria-hidden="true">
-                <svg viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
-                    <!-- Океан/атмосфера -->
-                    <defs>
-                        <radialGradient id="oceanGlow" cx="50%" cy="45%" r="60%">
-                            <stop offset="0%" stop-color="rgba(255,255,255,0.14)"/>
-                            <stop offset="55%" stop-color="rgba(255,255,255,0.06)"/>
-                            <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-                        </radialGradient>
-                        <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
-                            <feGaussianBlur stdDeviation="2.2" result="blur"/>
-                            <feColorMatrix in="blur" type="matrix"
-                                           values="1 0 0 0 0
-                          0 1 0 0 0
-                          0 0 1 0 0
-                          0 0 0 0.65 0" result="glow"/>
-                            <feMerge>
-                                <feMergeNode in="glow"/>
-                                <feMergeNode in="SourceGraphic"/>
-                            </feMerge>
-                        </filter>
-                    </defs>
-
-                    <rect x="0" y="0" width="1000" height="500" fill="url(#oceanGlow)"/>
-
-                    <!-- Континенты (упрощённая, но узнаваемая карта) -->
-                    <!-- Эти пути — компактная world-map silhouette, чтобы было “реалистично”, без внешних файлов -->
-                    <g fill="rgba(255,255,255,0.16)" filter="url(#softGlow)">
-                        <!-- North America -->
-                        <path d="M130,120 C150,95 200,80 240,85 C265,88 290,110 305,120
-                       C318,128 332,125 345,138 C360,156 350,180 330,195
-                       C310,212 285,215 270,235 C255,255 235,260 220,250
-                       C205,240 190,245 175,232 C160,220 150,200 140,185
-                       C130,170 115,150 130,120 Z"/>
-                        <!-- Greenland -->
-                        <path d="M340,70 C360,55 390,52 410,65 C430,80 420,105 395,115
-                       C370,125 345,110 338,95 C332,85 330,78 340,70 Z"/>
-                        <!-- South America -->
-                        <path d="M285,260 C305,250 330,265 340,285 C352,310 345,335 332,360
-                       C320,382 308,410 290,420 C270,432 252,415 255,390
-                       C258,365 270,345 270,322 C270,300 268,270 285,260 Z"/>
-
-                        <!-- Europe -->
-                        <path d="M470,135 C485,120 510,118 525,128 C540,140 560,135 575,148
-                       C590,160 585,178 565,180 C545,182 530,170 515,170
-                       C500,170 480,165 470,155 C462,147 460,145 470,135 Z"/>
-                        <!-- Africa -->
-                        <path d="M520,185 C545,170 580,180 600,205 C620,232 615,265 605,295
-                       C595,325 575,350 555,365 C535,380 515,365 505,340
-                       C495,315 500,295 490,270 C480,245 485,210 520,185 Z"/>
-
-                        <!-- Asia -->
-                        <path d="M575,145 C610,120 660,115 700,125 C740,135 770,150 800,165
-                       C835,183 870,185 890,210 C910,235 900,260 870,265
-                       C840,270 820,250 790,255 C760,260 735,285 710,290
-                       C685,295 670,275 650,270 C630,265 620,250 600,240
-                       C580,230 560,205 565,185 C570,165 560,155 575,145 Z"/>
-
-                        <!-- Australia -->
-                        <path d="M795,330 C820,315 855,318 875,335 C895,352 890,375 868,385
-                       C846,395 820,390 800,375 C782,360 775,340 795,330 Z"/>
-
-                        <!-- Antarctica hint -->
-                        <path d="M260,465 C400,440 600,440 740,465 C620,490 380,490 260,465 Z"
-                              fill="rgba(255,255,255,0.07)"/>
-                    </g>
-                </svg>
-            </div>
-
             <div class="mark n">N</div>
             <div class="mark e">E</div>
             <div class="mark s">S</div>
             <div class="mark w">W</div>
 
-            <!-- Маркер направления Кыйблы -->
+            <!-- Маркер направления Кыйблы (вращается по bearing) -->
             <div id="qiblaMark" class="qiblaMark" aria-label="Qibla marker"></div>
         </div>
 
         <!-- Фиксированная стрелка (куда “смотрит” телефон) -->
         <div class="northPointer" aria-hidden="true"></div>
+
         <div class="centerDot" aria-hidden="true"></div>
     </div>
 
@@ -124,6 +53,7 @@
     <div id="hint" class="hint">Определи геолокацию и вращай телефон.</div>
     <div id="err" class="err"></div>
 
+    <!-- iOS: появится только если нужно разрешение -->
     <button id="btn" class="btn hidden">Разрешить датчики</button>
     <button id="locBtn" class="btn secondary">Обновить геолокацию</button>
 </div>
