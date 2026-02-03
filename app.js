@@ -1,9 +1,11 @@
 /* =========================================================
-   QIBLA COMPASS — PRO-GRADE (Telegram WebApp)
-   - No trust in alpha
-   - Heading from alpha/beta/gamma (+ screen orientation)
-   - Posture detection (near-flat / vertical)
-   - WMM declination compensation (true north)
+   QIBLA COMPASS — STABLE ALIGNMENT MODE (Telegram WebApp)
+   Logic:
+   - Arrow is FIXED (points up).
+   - Dial rotates by -heading (true north heading).
+   - Kaaba marker is placed on dial at qibla azimuth (true north).
+   - User rotates phone to align arrow with Kaaba marker.
+   - When aligned (|heading - qiblaAzimuth| < threshold) -> show success.
    ========================================================= */
 
 const tg = window.Telegram?.WebApp ?? null;
@@ -18,6 +20,7 @@ const arrowEl  = document.getElementById("arrow");
 const dialEl   = document.getElementById("dial");
 const qAzEl    = document.getElementById("qAz");
 const hAzEl    = document.getElementById("hAz");
+const kaabaEl  = document.getElementById("kaaba"); // NEW marker
 
 /* ================================
    CONSTANTS
@@ -28,37 +31,41 @@ const KAABA_LON = 39.826206;
 const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
 
-const FRAME_MS = 16;
+// Update rate (lower is calmer in WebView)
+const FRAME_MS = 66; // ~15 FPS
 
-// Smoothing is adaptive based on posture/quality
-const BASE_SMOOTH = 0.12;
-const BASE_JITTER = 0.25;
+// Simple smoothing (enough because arrow is fixed)
+const SMOOTH = 0.18;        // 0..1 (higher = more responsive)
+const JITTER_DEG = 0.6;     // ignore tiny noise
 
 // Posture thresholds
-const FLAT_BETA_MAX  = 25; // degrees: screen-up near-flat => beta ~ 0
+const FLAT_BETA_MAX  = 25;
 const FLAT_GAMMA_MAX = 25;
-const VERT_BETA_MIN  = 60; // vertical-ish => |beta| >= 60
+const VERT_BETA_MIN  = 60;
+
+// Align threshold
+const ALIGN_DEG = 3.0;      // success window
 
 // Declination cache granularity
-const DECL_LATLON_GRID = 0.2;  // degrees
+const DECL_LATLON_GRID = 0.2;
 const DECL_TTL_DAYS = 30;
 
 /* ================================
    STATE
 ================================ */
-let qiblaAzimuthTrue = null;     // true-north bearing to Kaaba
-let rawHeadingTrue = null;       // true-north device heading
+let qiblaAzimuthTrue = null;
+let rawHeadingTrue = null;
 let smoothHeadingTrue = null;
 
-let lastEuler = null;            // {alpha,beta,gamma,absolute}
-let posture = "unknown";         // "flat" | "vertical" | "tilted"
-let quality = 0;                 // 0..1
+let posture = "unknown";
+let quality = 0;
 
-let declinationDeg = null;       // magnetic -> true correction (+east)
-let declStatus = "pending";      // "pending" | "ready" | "unavailable"
+let declinationDeg = null;
+let declStatus = "pending";
 
 let rafId = null;
 let lastTs = 0;
+let started = false;
 
 /* ================================
    MATH UTILS
@@ -73,6 +80,7 @@ function clamp(x, a, b) {
 }
 
 function delta(a, b) {
+  // shortest signed diff from a -> b in degrees (-180..180)
   return ((b - a + 540) % 360) - 180;
 }
 
@@ -83,9 +91,8 @@ function smoothAngle(prev, next, smoothing, jitter) {
 }
 
 function nowIsoDate() {
-  // Declination doesn't change fast; day precision ok
   const d = new Date();
-  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  return d.toISOString().slice(0, 10);
 }
 
 /* ================================
@@ -152,8 +159,6 @@ function getScreenAngleDeg() {
 
 /* ================================
    POSTURE + QUALITY
-   - flat: best for compass in web
-   - vertical: often unstable in WebView
 ================================ */
 function evaluatePosture(beta, gamma) {
   const ab = Math.abs(beta);
@@ -167,33 +172,23 @@ function evaluatePosture(beta, gamma) {
   else if (isVertical) p = "vertical";
   else p = "tilted";
 
-  // Quality model:
-  // flat -> 1.0
-  // tilted -> 0.5..0.8 depending on closeness to flat
-  // vertical -> 0.25..0.5 depending on how extreme tilt is
   let q;
   if (p === "flat") {
     q = 1.0;
   } else if (p === "tilted") {
-    // degrade with distance from flat thresholds
     const db = clamp((ab - FLAT_BETA_MAX) / 45, 0, 1);
     const dg = clamp((ag - FLAT_GAMMA_MAX) / 45, 0, 1);
-    q = 0.85 - 0.35 * Math.max(db, dg); // 0.5..0.85
+    q = 0.85 - 0.35 * Math.max(db, dg);
   } else {
-    // vertical: compass is often less reliable in WebView
     const dv = clamp((ab - VERT_BETA_MIN) / 30, 0, 1);
-    q = 0.50 - 0.25 * dv; // 0.25..0.50
+    q = 0.50 - 0.25 * dv;
   }
 
   return { posture: p, quality: clamp(q, 0, 1) };
 }
 
 /* ================================
-   ORIENTATION — PROFESSIONAL HEADING
-   headingFromEuler:
-   - Compute azimuth from rotation matrix components
-   - Apply screen orientation compensation
-   Output is "magnetic-like" in most Android WebViews, "true" on iOS webkitCompassHeading.
+   ORIENTATION — HEADING FROM EULER
 ================================ */
 function headingFromEuler(alphaDeg, betaDeg, gammaDeg) {
   const alpha = alphaDeg * DEG2RAD;
@@ -204,14 +199,11 @@ function headingFromEuler(alphaDeg, betaDeg, gammaDeg) {
   const cB = Math.cos(beta),  sB = Math.sin(beta);
   const cG = Math.cos(gamma), sG = Math.sin(gamma);
 
-  // Standard derivation used in robust web compass implementations:
-  // https://w3c.github.io/deviceorientation/ (conceptually) + common compassHeading snippets
   const rA = -cA * sG - sA * sB * cG;
   const rB = -sA * sG + cA * sB * cG;
 
   let headingRad = Math.atan2(rA, rB);
 
-  // screen rotation compensation
   headingRad += getScreenAngleDeg() * DEG2RAD;
 
   return normalize(headingRad * RAD2DEG);
@@ -219,16 +211,6 @@ function headingFromEuler(alphaDeg, betaDeg, gammaDeg) {
 
 /* ================================
    DECLINATION SERVICE (WMM)
-   Goal: magnetic heading -> true heading
-   Approach:
-   - Prefer local cached declination
-   - Load WMM library via ESM CDN (no build tools)
-   - Cache results in localStorage
-
-   Why CDN import:
-   - NOAA/NCEI API programmatic access often requires registration
-   - Embedding full WMM coefficients manually is bulky
-   - This gives professional-grade declination using NOAA WMM logic
 ================================ */
 const DeclinationService = (() => {
   const LS_KEY = "qibla_decl_cache_v1";
@@ -240,7 +222,7 @@ const DeclinationService = (() => {
   function cacheKey(lat, lon, dateIso) {
     const glat = roundGrid(lat, DECL_LATLON_GRID).toFixed(2);
     const glon = roundGrid(lon, DECL_LATLON_GRID).toFixed(2);
-    const ym = dateIso.slice(0, 7); // YYYY-MM
+    const ym = dateIso.slice(0, 7);
     return `${glat},${glon},${ym}`;
   }
 
@@ -267,18 +249,13 @@ const DeclinationService = (() => {
   }
 
   async function computeDeclination(lat, lon, altitudeMeters, dateObj) {
-    // Use ESM shim that can import commonjs packages.
-    // If this fails in some WebViews, we gracefully fallback.
-    // Note: altitude for WMM is in kilometers above MSL in this library.
     const altitudeKm = (altitudeMeters || 0) / 1000;
 
-    // Try esm.sh first (it typically works well in WebViews)
     const mod = await import("https://esm.sh/geomagnetism@0.2.0");
     const geomagnetism = mod?.default ?? mod;
 
     const model = geomagnetism.model(dateObj, { allowOutOfBoundsModel: true });
     const info = model.point([lat, lon, altitudeKm]);
-    // info.decl: positive if magnetic north is east of true north
     return Number(info.decl);
   }
 
@@ -292,11 +269,8 @@ const DeclinationService = (() => {
       return { decl: cached.decl, source: "cache" };
     }
 
-    // Compute fresh
     const decl = await computeDeclination(lat, lon, altitudeMeters, new Date(dateIso));
-    if (!Number.isFinite(decl)) {
-      throw new Error("Declination is not finite");
-    }
+    if (!Number.isFinite(decl)) throw new Error("Declination not finite");
 
     cache[key] = { decl, ts: Date.now() };
     saveCache(cache);
@@ -311,7 +285,7 @@ const DeclinationService = (() => {
    HEADING EXTRACTION (Unified)
 ================================ */
 function extractHeadingAndMeta(e) {
-  // 🍎 iOS: webkitCompassHeading is already TRUE heading (not magnetic)
+  // iOS: true heading
   if (typeof e.webkitCompassHeading === "number") {
     return {
       headingDeg: normalize(e.webkitCompassHeading),
@@ -320,19 +294,26 @@ function extractHeadingAndMeta(e) {
     };
   }
 
-  // 🤖 Android/WebView: compute from Euler (magnetic-like)
+  // Android/WebView: Euler -> magnetic-like
   if (
     typeof e.alpha === "number" &&
     typeof e.beta  === "number" &&
     typeof e.gamma === "number"
   ) {
     const h = headingFromEuler(e.alpha, e.beta, e.gamma);
-    const { posture: p, quality: q } = evaluatePosture(e.beta, e.gamma);
+    const pq = evaluatePosture(e.beta, e.gamma);
 
     return {
       headingDeg: h,
       isTrueNorth: false,
-      meta: { platform: "android", absolute: e.absolute === true, beta: e.beta, gamma: e.gamma, posture: p, quality: q }
+      meta: {
+        platform: "android",
+        absolute: e.absolute === true,
+        beta: e.beta,
+        gamma: e.gamma,
+        posture: pq.posture,
+        quality: pq.quality
+      }
     };
   }
 
@@ -340,7 +321,35 @@ function extractHeadingAndMeta(e) {
 }
 
 /* ================================
-   RENDER
+   UI HELPERS
+================================ */
+function setHintByPosture(p) {
+  if (p === "vertical") {
+    hintEl.textContent =
+      "⚠ Телефон держится вертикально. Для точной кыблы положите телефон горизонтально (экран вверх).";
+  } else if (p === "tilted") {
+    hintEl.textContent =
+      "ℹ Наклон влияет на точность. Держите телефон ближе к горизонтали.";
+  } else {
+    hintEl.textContent =
+      "✔ Поверните телефон и совместите стрелку с меткой Каабы.";
+  }
+}
+
+function updateStatusByAlignment(diffDeg) {
+  if (!Number.isFinite(diffDeg)) return;
+
+  if (diffDeg <= ALIGN_DEG) {
+    statusEl.textContent = "🕋 Телефон направлен на Каабу";
+  } else if (diffDeg <= 12) {
+    statusEl.textContent = "✅ Почти! Ещё чуть-чуть поверните телефон";
+  } else {
+    statusEl.textContent = "🧭 Поверните телефон, чтобы совместить стрелку с Каабой";
+  }
+}
+
+/* ================================
+   RENDER LOOP
 ================================ */
 function render(ts) {
   rafId = requestAnimationFrame(render);
@@ -349,25 +358,19 @@ function render(ts) {
 
   if (rawHeadingTrue == null) return;
 
-  // Adaptive smoothing:
-  // - better quality -> more responsive
-  // - worse quality -> more smoothing and more jitter deadzone
-  const q = quality || 0;
-  const smoothing = clamp(BASE_SMOOTH + (1 - q) * 0.18, 0.08, 0.30);
-  const jitter = clamp(BASE_JITTER + (1 - q) * 1.2, 0.25, 2.0);
-
   smoothHeadingTrue =
     smoothHeadingTrue == null
       ? rawHeadingTrue
-      : smoothAngle(smoothHeadingTrue, rawHeadingTrue, smoothing, jitter);
+      : smoothAngle(smoothHeadingTrue, rawHeadingTrue, SMOOTH, JITTER_DEG);
 
   hAzEl.textContent = smoothHeadingTrue.toFixed(1);
+
+  // Dial rotates with heading (arrow is fixed)
   dialEl.style.transform = `rotate(${-smoothHeadingTrue}deg)`;
 
   if (qiblaAzimuthTrue != null) {
-    // Relative angle between where the device points (true) and Kaaba (true)
-    const rel = normalize(qiblaAzimuthTrue - smoothHeadingTrue);
-    arrowEl.style.transform = `translate(-50%, -92%) rotate(${rel}deg)`;
+    const diff = Math.abs(delta(smoothHeadingTrue, qiblaAzimuthTrue));
+    updateStatusByAlignment(diff);
   }
 }
 
@@ -375,6 +378,12 @@ function render(ts) {
    START FLOW
 ================================ */
 async function startAfterPermission() {
+  if (started) return;
+  started = true;
+
+  // Arrow fixed (just to be explicit)
+  arrowEl.style.transform = `translate(-50%, -92%) rotate(0deg)`;
+
   statusEl.textContent = "📍 Получаем координаты…";
 
   const pos = await new Promise((res, rej) =>
@@ -388,100 +397,77 @@ async function startAfterPermission() {
   const lon = pos.coords.longitude;
   const alt = pos.coords.altitude || 0;
 
-  // Qibla bearing is TRUE-NORTH by definition (geodesic azimuth)
   qiblaAzimuthTrue = vincentyBearing(lat, lon, KAABA_LAT, KAABA_LON);
   qAzEl.textContent = qiblaAzimuthTrue.toFixed(1);
 
-  // Declination fetch (only needed for Android/WebView path)
-  // We'll load it lazily after first sensor event determines platform.
+  // Place Kaaba marker on the dial ONCE
+  // Because dial rotates by -heading, Kaaba marker should be at +qiblaAzimuthTrue on dial
+  if (kaabaEl) {
+    kaabaEl.style.transform = `rotate(${qiblaAzimuthTrue}deg) translateY(-126px)`;
+  }
+
   declinationDeg = null;
   declStatus = "pending";
 
-  statusEl.textContent = "🧭 Датчики… держите телефон ровно";
-  hintEl.textContent = "Держите телефон горизонтально (экран вверх) для максимальной точности.";
+  statusEl.textContent = "🧭 Датчики…";
+  hintEl.textContent = "Поверните телефон и совместите стрелку с меткой Каабы.";
 
   const onOrientation = async (e) => {
-    lastEuler = e;
-
     const res = extractHeadingAndMeta(e);
     if (!res) return;
 
-    // posture/quality tracking (only for android path)
     if (res.meta.platform === "android") {
       posture = res.meta.posture;
       quality = res.meta.quality;
-
-      // UX hint (auto-detect vertical)
-      if (posture === "vertical") {
-        hintEl.textContent =
-          "⚠ Телефон держится вертикально. Для точной кыблы положите телефон горизонтально (экран вверх).";
-      } else if (posture === "tilted") {
-        hintEl.textContent =
-          "ℹ Наклон влияет на точность. Постарайтесь держать телефон ближе к горизонтали.";
-      } else {
-        hintEl.textContent =
-          "✔ Отлично. Горизонтальное положение даёт максимальную точность.";
-      }
+      setHintByPosture(posture);
     } else {
       posture = "flat";
       quality = 1.0;
     }
 
-    // Compute true heading
     if (res.isTrueNorth) {
-      // iOS: already true
       rawHeadingTrue = res.headingDeg;
       declStatus = "ready";
       declinationDeg = 0;
-    } else {
-      // Android: res.headingDeg is magnetic-like => add WMM declination
-      if (declStatus === "pending") {
-        // Kick declination retrieval once
-        declStatus = "loading";
-        try {
-          const { decl, source } = await DeclinationService.getDeclination(lat, lon, alt);
-          declinationDeg = decl;
-          declStatus = "ready";
-
-          // Keep status calm; no user action needed
-          statusEl.textContent = source === "cache"
-            ? "✅ Готово (WMM: кэш)"
-            : "✅ Готово (WMM: рассчитано)";
-        } catch (err) {
-          // If declination unavailable, we still run, but accuracy can be off by local declination.
-          declinationDeg = 0;
-          declStatus = "unavailable";
-          statusEl.textContent = "⚠ Не удалось загрузить WMM. Точность может снизиться.";
-          // keep app working
-          console.warn("[WMM] declination unavailable:", err);
-        }
-      }
-
-      const d = (declStatus === "ready" && Number.isFinite(declinationDeg)) ? declinationDeg : 0;
-
-      // True heading = magnetic heading + declination (east-positive)
-      rawHeadingTrue = normalize(res.headingDeg + d);
+      return;
     }
 
-    // If we are already rendering, nothing else to do
+    // Android: heading is magnetic-like -> add declination
+    if (declStatus === "pending") {
+      declStatus = "loading";
+      try {
+        const { decl, source } = await DeclinationService.getDeclination(lat, lon, alt);
+        declinationDeg = decl;
+        declStatus = "ready";
+        // keep status calm
+        statusEl.textContent = source === "cache"
+          ? "✅ Готово (WMM: кэш)"
+          : "✅ Готово (WMM: рассчитано)";
+      } catch (err) {
+        declinationDeg = 0;
+        declStatus = "unavailable";
+        statusEl.textContent = "⚠ Не удалось загрузить WMM. Точность может снизиться.";
+        console.warn("[WMM] declination unavailable:", err);
+      }
+    }
+
+    const d = (declStatus === "ready" && Number.isFinite(declinationDeg)) ? declinationDeg : 0;
+    rawHeadingTrue = normalize(res.headingDeg + d);
   };
 
   const hasAbsolute = "ondeviceorientationabsolute" in window;
 
-  // Prefer absolute if present (some browsers provide better stability)
   window.addEventListener(
     hasAbsolute ? "deviceorientationabsolute" : "deviceorientation",
     onOrientation,
     { capture: true }
   );
-  // Also listen to the other one if available — Telegram WebView can be inconsistent
+
   if (hasAbsolute) {
     window.addEventListener("deviceorientation", onOrientation, { capture: true });
   }
 
-  // Start rendering loop
   if (!rafId) rafId = requestAnimationFrame(render);
-  statusEl.textContent = "✅ Готово";
 }
 
 /* ================================
@@ -490,7 +476,6 @@ async function startAfterPermission() {
 btnStart.addEventListener("click", () => {
   btnStart.disabled = true;
 
-  // 🍎 iOS strict permission flow
   if (
     typeof DeviceOrientationEvent !== "undefined" &&
     typeof DeviceOrientationEvent.requestPermission === "function"
@@ -503,14 +488,15 @@ btnStart.addEventListener("click", () => {
       .catch(() => {
         statusEl.textContent = "❌ Нет доступа к датчикам";
         btnStart.disabled = false;
+        started = false;
       });
     return;
   }
 
-  // 🤖 Android flow
   startAfterPermission().catch(err => {
     console.error(err);
     statusEl.textContent = "❌ Ошибка запуска";
     btnStart.disabled = false;
+    started = false;
   });
 });

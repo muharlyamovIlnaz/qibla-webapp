@@ -16,32 +16,31 @@
 }
 
 * { box-sizing: border-box; }
-
 html, body { height: 100%; }
 
 body {
   margin: 0;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    /* 🌌 ЗВЁЗДНОЕ НЕБО — АККУРАТНО, БЕЗ ЛОМАНИЯ ДИЗАЙНА */
-    background:
-      radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.55), transparent 2px),
-      radial-gradient(1px 1px at 28% 72%, rgba(255,255,255,0.45), transparent 2px),
-      radial-gradient(1px 1px at 46% 34%, rgba(255,255,255,0.4), transparent 2px),
-      radial-gradient(1px 1px at 63% 58%, rgba(255,255,255,0.35), transparent 2px),
-      radial-gradient(1px 1px at 82% 26%, rgba(255,255,255,0.5), transparent 2px),
-      radial-gradient(1200px 700px at 50% -10%, rgba(47,124,246,0.18), transparent 60%),
-      linear-gradient(180deg, var(--bg0), var(--bg1));
 
-    background-repeat: repeat;
-    background-size:
-      260px 260px,
-      320px 320px,
-      380px 380px,
-      420px 420px,
-      500px 500px,
-      auto,
-      auto;
+  background:
+    radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.55), transparent 2px),
+    radial-gradient(1px 1px at 28% 72%, rgba(255,255,255,0.45), transparent 2px),
+    radial-gradient(1px 1px at 46% 34%, rgba(255,255,255,0.4), transparent 2px),
+    radial-gradient(1px 1px at 63% 58%, rgba(255,255,255,0.35), transparent 2px),
+    radial-gradient(1px 1px at 82% 26%, rgba(255,255,255,0.5), transparent 2px),
+    radial-gradient(1200px 700px at 50% -10%, rgba(47,124,246,0.18), transparent 60%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
+
+  background-repeat: repeat;
+  background-size:
+    260px 260px,
+    320px 320px,
+    380px 380px,
+    420px 420px,
+    500px 500px,
+    auto,
+    auto;
 }
 
 .wrap {
@@ -97,11 +96,7 @@ body {
 }
 
 .btn:active { transform: scale(0.99); }
-
-.btn[disabled] {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
+.btn[disabled] { opacity: 0.55; cursor: not-allowed; }
 
 .compassWrap {
   display: flex;
@@ -159,7 +154,6 @@ body {
   transform-origin: 50% 50%;
 }
 
-
 /* Cardinal marks */
 .mark {
   position: absolute;
@@ -183,14 +177,13 @@ body {
 .mark.e { right: 10px; top: 50%; transform: translateY(-50%); }
 .mark.w { left: 10px; top: 50%; transform: translateY(-50%); }
 
-/* N чуть заметнее */
 .mark.n span {
   color: rgba(255,255,255,0.75);
   border-color: rgba(255,255,255,0.10);
   background: rgba(255,255,255,0.05);
 }
 
-/* Arrow (Qibla) */
+/* Arrow (FIXED, always up) */
 .arrow {
   position: absolute;
   left: 50%;
@@ -228,6 +221,46 @@ body {
   border-radius: 50%;
   background: rgba(255,255,255,0.92);
   box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+}
+
+/* NEW: Kaaba marker (sits on the dial and rotates with it) */
+.kaaba {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: 50% 50%;
+  /* transform is set by JS: rotate(qAz) translateY(-126px) */
+  pointer-events: none;
+  text-align: center;
+}
+
+.kaabaIcon {
+  width: 14px;
+  height: 14px;
+  margin: 0 auto 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.25);
+  position: relative;
+}
+
+.kaabaIcon::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 2px;
+  background: rgba(0,0,0,0.65);
+}
+
+.kaabaLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 4px 6px;
+  border-radius: 10px;
 }
 
 .info {
