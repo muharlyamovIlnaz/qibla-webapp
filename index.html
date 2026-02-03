@@ -2,31 +2,32 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
     <title>Compass</title>
-    <link rel="stylesheet" href="style.css"/>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
 <div class="card">
-    <h1>Компас</h1>
+    <div class="title">Компас</div>
 
     <div class="compass">
-        <!-- Вращаемый круг -->
         <div id="dial" class="dial">
             <div class="mark n">N</div>
             <div class="mark e">E</div>
             <div class="mark s">S</div>
             <div class="mark w">W</div>
         </div>
-
-        <!-- Невращаемая стрелка на север -->
         <div class="needle"></div>
     </div>
 
     <div class="row">
-        <span>Heading:</span>
-        <span id="deg">--</span><span>°</span>
+        <div>Heading:</div>
+        <div><span id="deg">--</span>°</div>
+    </div>
+
+    <div class="row small">
+        <div>Source:</div>
+        <div id="src">-</div>
     </div>
 
     <button id="enable">Включить компас</button>
