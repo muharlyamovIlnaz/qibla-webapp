@@ -1,7 +1,7 @@
 // =========================
 // VERSION (меняй при каждом деплое)
 // =========================
-const APP_VERSION = "1.2.3";
+const APP_VERSION = "1.2.2";
 
 // =========================
 // KAABA coords
@@ -51,6 +51,12 @@ function normalize360(d){
 
 function shortestDelta(fromDeg, toDeg){
   return ((toDeg - fromDeg + 540) % 360) - 180;
+}
+
+function screenAngle(){
+  if (screen.orientation && typeof screen.orientation.angle === "number") return screen.orientation.angle;
+  if (typeof window.orientation === "number") return window.orientation;
+  return 0;
 }
 
 // bearing from (lat1,lon1) to (lat2,lon2)
@@ -127,40 +133,21 @@ locBtn.addEventListener("click", requestLocation);
 // =========================
 // Compass input
 // =========================
-function screenAngle(){
-  // iOS Safari иногда даёт window.orientation
-  if (screen.orientation && typeof screen.orientation.angle === "number") return screen.orientation.angle;
-  if (typeof window.orientation === "number") return window.orientation;
-  return 0;
-}
+function setHeadingTarget(h){
+  h = normalize360(h + screenAngle());
 
-// Нормальный расчёт heading из alpha/beta/gamma (в градусах 0..360)
-function compassHeading(alpha, beta, gamma) {
-  const _alpha = toRad(alpha);
-  const _beta  = toRad(beta);
-  const _gamma = toRad(gamma);
-
-  const cA = Math.cos(_alpha), sA = Math.sin(_alpha);
-  const cB = Math.cos(_beta),  sB = Math.sin(_beta);
-  const cG = Math.cos(_gamma), sG = Math.sin(_gamma);
-
-  // Rotation matrix components
-  const rA = -cA * sG - sA * sB * cG;
-  const rB = -sA * sG + cA * sB * cG;
-
-  let heading = Math.atan2(rA, rB); // radians
-  heading = toDeg(heading);
-  return normalize360(heading);
-}
-
-// Сглаживание target по окружности (как у тебя было)
-function setHeadingTargetCircular(h){
+  // инициализация
   if (headingFiltered == null) headingFiltered = h;
+
+  // сглаживание по окружности (важно! углы по кругу)
   const delta = shortestDelta(headingFiltered, h);
   headingFiltered = normalize360(headingFiltered + delta * TARGET_SMOOTH);
+
   headingTarget = headingFiltered;
+
   if (headingCurrent == null) headingCurrent = headingTarget;
 }
+
 
 let seenAbsolute = false;
 
@@ -168,23 +155,12 @@ function onOrientation(e){
   if (e.type === "deviceorientationabsolute") seenAbsolute = true;
   if (e.type === "deviceorientation" && seenAbsolute) return;
 
-  // ✅ iOS Safari: самый надёжный путь
-  // ВАЖНО: НЕ добавляем screenAngle(), Safari уже даёт heading по экрану
   if (typeof e.webkitCompassHeading === "number") {
-    setHeadingTargetCircular(normalize360(e.webkitCompassHeading));
+    setHeadingTarget(e.webkitCompassHeading);
     return;
   }
-
-  // ✅ Остальные: считаем heading по alpha/beta/gamma
-  // (alpha сам по себе часто даёт ошибки/флипы)
-  if (typeof e.alpha === "number" && typeof e.beta === "number" && typeof e.gamma === "number") {
-    let h = compassHeading(e.alpha, e.beta, e.gamma);
-
-    // Для некоторых браузеров нужно учесть поворот экрана
-    // (в отличие от iOS webkitCompassHeading)
-    h = normalize360(h + screenAngle());
-
-    setHeadingTargetCircular(h);
+  if (typeof e.alpha === "number") {
+    setHeadingTarget(360 - e.alpha);
   }
 }
 
