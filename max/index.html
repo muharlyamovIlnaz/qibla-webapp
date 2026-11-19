@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#191a18">
+  <title>Кыйбла</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="https://st.max.ru/js/max-web-app.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+<main class="console" id="console" data-state="idle">
+  <header class="toolbar">
+    <h1>
+      <svg viewBox="0 0 36 36" aria-hidden="true" stroke-linejoin="round">
+        <path d="M3.5 9.5 21 4.5l11.5 4.3v18.5l-17.5 5-11.5-4.3Z" fill="#282925" stroke="#d8d4c6" stroke-width="1.3"/>
+        <path d="m4 9.5 17-4.9 11 4.2-17 4.9Z" fill="#575951"/>
+        <path d="m4 10 11 4v17.5l-11-4.1Z" fill="#393b35"/>
+        <path d="m4 13.4 11 4.1 17-4.9v2.6l-17 4.9-11-4.1Z" fill="#e5bf78"/>
+        <path d="m18 21.2 4-1.1v6.1l-4 1.1Z" fill="#e5bf78"/>
+      </svg>
+      Кыйбла
+    </h1>
+    <button class="help-button" id="help" aria-haspopup="dialog" aria-controls="guide"><svg viewBox="0 0 24 16" aria-hidden="true"><path d="M12 8C8-1 1 1 1 8c0 7 7 9 11 0s11-7 11 0-7 9-11 0Z"/></svg>Калибровка</button>
+  </header>
+
+  <section class="focus" aria-label="Наведение">
+    <div class="focus-line">
+      <div class="measure">
+        <div class="eyebrow"><i class="lamp"></i>Отклонение</div>
+        <span class="display" id="angle-display" aria-hidden="true">—</span>
+        <span class="sr-only" id="offset-value">Нет показания</span>
+      </div>
+      <figure class="sector">
+        <svg viewBox="0 0 82 82" aria-hidden="true">
+          <circle cx="41" cy="41" r="38" class="sector-rim"/>
+          <circle class="hold-track" id="hold-track" cx="41" cy="41" r="38" pathLength="100" transform="rotate(-90 41 41)"/>
+          <path class="sector-index" d="M39 2h4l-2 4z"/>
+          <g id="petals"></g><circle class="sector-hub" cx="41" cy="41" r="2"/>
+        </svg>
+        <figcaption id="sector-label">Обзор 360°</figcaption>
+      </figure>
+    </div>
+    <div class="guidance">
+      <h2 id="status" role="status">Держите телефон ровно</h2>
+      <p id="hint">Для наведения нужны геопозиция и компас телефона.</p>
+      <button class="start" id="start">Включить компас <span aria-hidden="true">↗</span></button>
+    </div>
+  </section>
+
+  <div class="field">
+    <div class="optics" aria-hidden="true">
+      <svg class="scope" viewBox="0 0 400 1" preserveAspectRatio="xMidYMin meet">
+        <defs>
+          <clipPath id="disc-clip"><circle cx="200" cy="426" r="358"/></clipPath>
+          <radialGradient id="needle-light"><stop class="light-stop" stop-opacity=".42"/><stop offset=".5" class="light-stop" stop-opacity=".1"/><stop offset="1" class="light-stop" stop-opacity="0"/></radialGradient>
+          <linearGradient id="needle-face" x2="1" y2="1"><stop class="tip-stop"/><stop offset="1" class="base-stop"/></linearGradient>
+        </defs>
+        <g class="sky-pins" fill="#b8b6a9">
+          <circle cx="37" cy="39" r=".8"/><circle cx="96" cy="17" r=".65"/><circle cx="147" cy="47" r=".6"/><circle cx="239" cy="15" r=".7"/><circle cx="302" cy="44" r=".8"/><circle cx="365" cy="26" r=".6"/>
+          <path d="M61 68h5m-2.5-2.5v5m276-17h5m-2.5-2.5v5" fill="none" stroke="currentColor" stroke-width=".7"/>
+        </g>
+        <circle cx="200" cy="426" r="358" fill="#272925"/>
+        <image href="disc.webp" width="400" height="540" clip-path="url(#disc-clip)" preserveAspectRatio="none"/>
+        <g fill="none">
+          <circle cx="200" cy="426" r="369" stroke="#a4a396" stroke-opacity=".44" stroke-width=".8" stroke-dasharray=".8 4.7"/>
+          <circle cx="200" cy="426" r="362" stroke="#75766d" stroke-width="1"/>
+          <circle cx="200" cy="426" r="358" stroke="#c1bead" stroke-width="1.3"/>
+          <circle cx="200" cy="426" r="353" stroke="#a8a696" stroke-opacity=".34"/>
+          <circle cx="200" cy="426" r="289" stroke="#151714" stroke-width="2"/>
+          <circle cx="200" cy="426" r="286.5" stroke="#a09f90" stroke-opacity=".45" stroke-width=".8"/>
+          <circle cx="200" cy="426" r="241" stroke="#b2aea0" stroke-opacity=".27" stroke-width=".8" stroke-dasharray="1 5"/>
+        </g>
+        <g id="rose"></g>
+        <path id="course-arc" class="course-arc" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+        <g id="needle" visibility="hidden">
+          <ellipse cx="200" cy="69" rx="24" ry="35" fill="url(#needle-light)"/>
+          <path class="needle-shadow" d="m200 42 11 42-11-7-11 7z" transform="translate(0 2)"/>
+          <path d="m200 42 11 42-11-7-11 7z" fill="url(#needle-face)"/>
+          <path class="needle-facet" d="m200 42 11 42-11-7z"/>
+          <path d="M200 80v10" stroke="currentColor" stroke-width="1.1"/>
+        </g>
+        <g class="aim-mark">
+          <path d="M190 31v-4h5m10 0h5v4" fill="none" stroke="currentColor" stroke-width="1"/>
+          <path d="m196 33 4 6 4-6z" fill="currentColor"/>
+        </g>
+        <g class="turn-glyph" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path class="turn-tail" d="M216 43q18 0 40 4"/><path d="m250 41 8 6-9 3"/>
+        </g>
+        <g class="level-guide" fill="none" stroke="currentColor" stroke-linecap="round">
+          <path d="M162 43h76" stroke-dasharray="1 4" opacity=".55"/>
+          <g class="level-phone"><rect x="182" y="39" width="36" height="6" rx="2"/><path d="M206 42h5"/></g>
+        </g>
+        <g class="capture-pulse" fill="none" stroke="currentColor"><circle cx="200" cy="63" r="16"/></g>
+      </svg>
+    </div>
+
+    <div class="telemetry">
+      <dl class="coordinates">
+        <div><dt>Курс телефона</dt><dd><span id="heading">—</span> <small id="cardinal"></small></dd></div>
+        <div><dt>Азимут кыйблы</dt><dd><span id="bearing">—</span><svg class="bearing-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m8 2 4.5 11L8 11l-4.5 2z"/></svg></dd></div>
+      </dl>
+      <button class="distance-button" id="details" aria-controls="readings" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><ellipse cx="12" cy="12" rx="4" ry="8" transform="rotate(34 12 12)"/><path d="m4.5 9 15 6"/></svg>
+        <span>До Каабы</span><b id="distance">—</b><span class="details-chevron" aria-hidden="true">›</span>
+      </button>
+    </div>
+  </div>
+
+  <dialog id="guide" aria-labelledby="guide-title">
+    <header class="sheet-head"><h2 id="guide-title">Калибровка</h2><button class="close" aria-label="Закрыть">×</button></header>
+    <div class="lesson">
+      <svg viewBox="0 0 260 110" aria-hidden="true">
+        <path d="M130 55C104 24 85 13 66 24c-27 15-22 55 7 62 22 5 41-13 57-31s38-39 59-31c31 12 30 50 5 61-24 11-45-10-64-30Z" fill="none" stroke="currentColor" stroke-dasharray="2 4" stroke-width="1.8"/>
+        <g class="lesson-phone"><rect x="-7" y="-12" width="14" height="24" rx="3"/><path d="M-2 8h4"/></g>
+      </svg>
+    </div>
+    <h3>Опишите восьмёрку</h3><p>Плавно проведите телефоном по этой траектории несколько раз, поворачивая кисть.</p>
+    <h3>Выровняйте экран</h3><p>Держите телефон горизонтально экраном вверх и поворачивайтесь вместе с ним. Если стрелка скачет, отойдите от металла и снимите магнитный чехол.</p>
+    <button class="sheet-done">К компасу <span aria-hidden="true">↗</span></button>
+  </dialog>
+
+  <dialog id="readings" aria-labelledby="readings-title">
+    <header class="sheet-head"><h2 id="readings-title">Показания компаса</h2><button class="close" aria-label="Закрыть">×</button></header>
+    <dl class="reading-rows">
+      <div><dt>Курс телефона</dt><dd id="info-heading">—</dd></div>
+      <div><dt>Азимут кыйблы</dt><dd id="info-bearing">—</dd></div>
+      <div><dt>До Каабы по дуге Земли</dt><dd id="info-distance">—</dd></div>
+    </dl>
+    <p>Оба угла отсчитываются от истинного севера по часовой стрелке. Стрелка указывает начальное направление кратчайшего пути к Каабе по поверхности Земли.</p>
+    <h3>Как подтвердить направление</h3><p>Совместите стрелку с верхней меткой и удерживайте телефон в пределах 5° около секунды. При повороте подсвеченный сектор показывает сторону от верхнего края телефона. При удержании сектора заполняются по кругу.</p>
+    <button class="sheet-done">К компасу <span aria-hidden="true">↗</span></button>
+  </dialog>
+</main>
+</body>
+</html>
