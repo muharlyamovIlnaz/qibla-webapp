@@ -48,6 +48,15 @@ function loadField() {
   return fieldRequest;
 }
 
+function schedulePosition() {
+  const payload = window.WebApp?.initDataUnsafe?.start_param;
+  const match = /^cell_(-?\d{1,5})_(-?\d{1,5})$/.exec(payload ?? '');
+  if (!match) return null;
+  const latitude = Number(match[1]) / 100, longitude = Number(match[2]) / 100;
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  return {coords: {latitude, longitude, accuracy: 5000}};
+}
+
 function locate(precise) {
   return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {
     enableHighAccuracy: precise, maximumAge: precise ? 0 : 60000, timeout: precise ? 15000 : 8000
@@ -144,7 +153,8 @@ async function startCompass(fromTap) {
   const id = session;
   showNotice('waiting', 'Подключаем компас', '');
   try {
-    if (!window.isSecureContext || !navigator.geolocation || !window.DeviceOrientationEvent) {
+    const saved = schedulePosition();
+    if (!window.isSecureContext || (!saved && !navigator.geolocation) || !window.DeviceOrientationEvent) {
       throw new Error('Откройте компас на телефоне по HTTPS и разрешите доступ к датчикам.');
     }
     const orientation = window.DeviceOrientationEvent;
@@ -162,9 +172,10 @@ async function startCompass(fromTap) {
       if (permission !== 'granted') throw new Error('Разрешите доступ к ориентации устройства в настройках MAX.');
     }
     if (id !== session) return;
-    showNotice('waiting', 'Определяем местоположение', 'Разрешите доступ к геопозиции.');
+    showNotice('waiting', saved ? 'Используем локацию расписания' : 'Определяем местоположение', saved ? '' : 'Разрешите доступ к геопозиции.');
+    document.getElementById('location-source').hidden = !saved;
     const [position, field] = await Promise.all([
-      getPosition(id).catch(error => {
+      saved ?? getPosition(id).catch(error => {
         if (id === session) locationFailure(error);
         return null;
       }),
@@ -195,7 +206,10 @@ function listenWhenVisible() {
   lastSignal = performance.now();
   for (const event of orientationEvents) window.addEventListener(event, onOrientation);
   watchdog = setInterval(() => {
-    if (performance.now() - lastSignal > 5000) fail('Нет надёжного сигнала', 'Проверьте доступ к датчикам и отойдите от металла.');
+    if (performance.now() - lastSignal > 5000) {
+      fail('Нет надёжного сигнала', 'Телефон не передал направление. Проверьте доступ к датчикам или откройте компас в браузере.');
+      browserLink.hidden = new URLSearchParams(location.search).get('external') === '1';
+    }
   }, 500);
 }
 
