@@ -5,6 +5,7 @@ const orientationEvents = ['deviceorientationabsolute', 'deviceorientation'];
 const startButton = document.getElementById('start');
 let session = 0, correction = null, lastSignal = 0, watchdog;
 let fieldRequest;
+let sensorsReady = false;
 
 function loadField() {
   fieldRequest ??= fetch('field.json').then(response => {
@@ -17,10 +18,16 @@ function loadField() {
   return fieldRequest;
 }
 
-function stop() {
-  session++;
+function pauseSensors() {
   clearInterval(watchdog);
   for (const event of orientationEvents) window.removeEventListener(event, onOrientation);
+  watchdog = undefined;
+}
+
+function stop() {
+  session++;
+  sensorsReady = false;
+  pauseSensors();
   correction = null;
   setDestination(null, null);
 }
@@ -99,15 +106,21 @@ async function startCompass(fromTap) {
     const fraction = (now - Date.UTC(year, 0)) / (Date.UTC(year + 1, 0) - Date.UTC(year, 0));
     correction = declination(field, latitude, longitude, year + fraction);
     setDestination(target, angle * 6371);
-    showNotice('waiting', 'Ожидаем компас', 'Держите телефон горизонтально.');
-    lastSignal = performance.now();
-    for (const event of orientationEvents) window.addEventListener(event, onOrientation);
-    watchdog = setInterval(() => {
-      if (performance.now() - lastSignal > 5000) fail('Нет надёжного сигнала', 'Проверьте доступ к датчикам и отойдите от металла.');
-    }, 500);
+    sensorsReady = true;
+    listenWhenVisible();
   } catch (error) {
     if (id === session) fail('Компас пока недоступен', error.code ? 'Проверьте разрешение на геопозицию и попробуйте снова.' : error.message);
   }
+}
+
+function listenWhenVisible() {
+  if (!sensorsReady || document.hidden || watchdog !== undefined) return;
+  showNotice('waiting', 'Ожидаем компас', 'Держите телефон горизонтально.');
+  lastSignal = performance.now();
+  for (const event of orientationEvents) window.addEventListener(event, onOrientation);
+  watchdog = setInterval(() => {
+    if (performance.now() - lastSignal > 5000) fail('Нет надёжного сигнала', 'Проверьте доступ к датчикам и отойдите от металла.');
+  }, 500);
 }
 
 startButton.addEventListener('click', () => startCompass(true));
@@ -121,11 +134,14 @@ function startWhenVisible() {
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    stop();
-    showNotice('idle', 'Держите телефон ровно', '');
+    if (sensorsReady) {
+      pauseSensors();
+      showNotice('waiting', 'Компас на паузе', '');
+    }
   } else {
     startWhenVisible();
+    listenWhenVisible();
   }
 });
-window.WebApp?.ready?.();
 startWhenVisible();
+window.WebApp?.ready?.();
