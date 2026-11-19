@@ -2,6 +2,15 @@ import {bearing, centralAngle, declination, wrap} from './compass-math.js';
 import {setDestination, showHeading, showNotice, showTilt} from './instrument.js';
 
 const orientationEvents = ['deviceorientationabsolute', 'deviceorientation'];
+const browserLink = document.getElementById('browser-link');
+const browserUrl = location.origin + location.pathname + '?external=1';
+browserLink.href = browserUrl;
+browserLink.addEventListener('click', event => {
+  if (window.WebApp?.initData && typeof window.WebApp.openLink === 'function') {
+    event.preventDefault();
+    window.WebApp.openLink(browserUrl);
+  }
+});
 const startButton = document.getElementById('start');
 let session = 0, correction = null, lastSignal = 0, watchdog;
 let fieldRequest;
@@ -41,7 +50,14 @@ async function getPosition(id) {
 
 function locationFailure(error) {
   switch (error.code) {
-    case 1: return fail('Нет доступа к геопозиции', 'Разрешите MAX доступ к местоположению при использовании приложения. Затем нажмите «Попробовать снова».');
+    case 1: {
+      const external = new URLSearchParams(location.search).get('external') === '1';
+      fail('Нет доступа к геопозиции', external
+        ? 'Разрешите этому сайту использовать местоположение в настройках браузера и повторите попытку.'
+        : 'Страница не получила доступ к местоположению. Если разрешение MAX уже выдано, откройте компас в браузере.');
+      browserLink.hidden = external;
+      return;
+    }
     case 2: return fail('Телефон не определил местоположение', 'Проверьте, включена ли геолокация телефона, и попробуйте у окна или на улице.');
     case 3: return fail('Определение места заняло слишком много времени', 'Попробуйте ещё раз у окна или на улице.');
     default: return fail('Не удалось определить местоположение', 'Проверьте геолокацию телефона и повторите попытку.');
@@ -95,6 +111,7 @@ function onOrientation(event) {
 }
 
 async function startCompass(fromTap) {
+  browserLink.hidden = true;
   stop();
   const id = session;
   showNotice('waiting', 'Подключаем компас', '');
