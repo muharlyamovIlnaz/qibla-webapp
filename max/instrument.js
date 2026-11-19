@@ -113,7 +113,8 @@ export function showTilt() {
   showNotice('tilt', 'Выровняйте телефон', 'Держите экран горизонтально, лицевой стороной вверх.');
 }
 
-export function showHeading(heading, now = performance.now()) {
+export function showHeading(heading, now = performance.now(), resumed = false) {
+  if (resumed && !locked) holdStart = null;
   if (target === null || !Number.isFinite(heading)) return;
   const elapsed = lastSample === null ? Infinity : now - lastSample;
   if (elapsed > 1500) {

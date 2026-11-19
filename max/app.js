@@ -1,5 +1,5 @@
 import {bearing, centralAngle, declination, wrap} from './compass-math.js';
-import {setDestination, showHeading, showNotice, showTilt} from './instrument.js';
+import {setDestination, showHeading, showNotice, showTilt} from './instrument.js?v=eac4b23578';
 
 const orientationEvents = ['deviceorientationabsolute', 'deviceorientation'];
 const browserLink = document.getElementById('browser-link');
@@ -15,6 +15,27 @@ const startButton = document.getElementById('start');
 let session = 0, correction = null, lastSignal = 0, watchdog;
 let fieldRequest;
 let sensorsReady = false;
+let problem = null, problemSince = 0, warningShown = false;
+let lastCalibrationTip = -Infinity;
+
+function reportSensorProblem(kind, now) {
+  if (problem !== kind) {
+    problem = kind;
+    problemSince = now;
+    warningShown = false;
+  }
+  const delay = kind === 'tilt' ? 1500 : 4000;
+  if (warningShown || now - problemSince < delay) return;
+  warningShown = true;
+  if (kind === 'tilt') {
+    showTilt();
+  } else if (now - lastCalibrationTip >= 60000) {
+    lastCalibrationTip = now;
+    showNotice('calibrate', 'Настройте компас', 'Медленно опишите телефоном восьмёрку.');
+  } else {
+    showNotice('waiting', 'Уточняем направление', 'Отойдите от металлических предметов.');
+  }
+}
 
 function loadField() {
   fieldRequest ??= fetch('field.json').then(response => {
@@ -65,6 +86,8 @@ function locationFailure(error) {
 }
 
 function pauseSensors() {
+  problem = null;
+  warningShown = false;
   clearInterval(watchdog);
   for (const event of orientationEvents) window.removeEventListener(event, onOrientation);
   watchdog = undefined;
@@ -84,30 +107,35 @@ function fail(title, hint) {
 }
 
 function onOrientation(event) {
-  let heading;
-  if (Number.isFinite(event.webkitCompassHeading)) {
-    lastSignal = performance.now();
+  const appleHeading = Number.isFinite(event.webkitCompassHeading);
+  if (!appleHeading && (!event.absolute || !Number.isFinite(event.alpha))) return;
+  lastSignal = performance.now();
+
+  const limit = problem === 'tilt' && warningShown ? 30 : 38;
+  if (!Number.isFinite(event.beta) || !Number.isFinite(event.gamma) ||
+      Math.max(Math.abs(event.beta), Math.abs(event.gamma)) > limit) {
+    reportSensorProblem('tilt', lastSignal);
+    return;
+  }
+
+  let heading = 360 - event.alpha;
+  if (appleHeading) {
     if (correction === null) {
       fail('Не удалось уточнить север', 'Попробуйте снова, когда доступна модель магнитного поля для вашего места.');
       return;
     }
     const accuracy = event.webkitCompassAccuracy;
     if (event.webkitCompassHeading < 0 || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 15) {
-      showNotice('calibrate', 'Настройте компас', 'Медленно опишите телефоном восьмёрку. Образец движения — в «Калибровке».');
+      reportSensorProblem('accuracy', lastSignal);
       return;
     }
     heading = event.webkitCompassHeading + correction;
-  } else {
-    if (!event.absolute || !Number.isFinite(event.alpha)) return;
-    lastSignal = performance.now();
-    heading = 360 - event.alpha;
   }
-  if (!Number.isFinite(event.beta) || !Number.isFinite(event.gamma) || Math.abs(event.beta) > 16 || Math.abs(event.gamma) > 16) {
-    showTilt();
-    return;
-  }
+  const resumed = problem !== null;
+  problem = null;
+  warningShown = false;
   const course = wrap(heading + (screen.orientation?.angle ?? window.orientation ?? 0));
-  if (showHeading(course, lastSignal)) navigator.vibrate?.(55);
+  if (showHeading(course, lastSignal, resumed)) navigator.vibrate?.(55);
 }
 
 async function startCompass(fromTap) {
