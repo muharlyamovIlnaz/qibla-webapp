@@ -57,7 +57,7 @@ function onOrientation(event) {
   if (showHeading(course, lastSignal)) navigator.vibrate?.(55);
 }
 
-startButton.addEventListener('click', async () => {
+async function startCompass(fromTap) {
   stop();
   const id = session;
   showNotice('waiting', 'Подключаем компас', '');
@@ -66,8 +66,18 @@ startButton.addEventListener('click', async () => {
       throw new Error('Откройте компас на телефоне по HTTPS и разрешите доступ к датчикам.');
     }
     const orientation = window.DeviceOrientationEvent;
-    if (orientation.requestPermission && await orientation.requestPermission(true) !== 'granted') {
-      throw new Error('Разрешите доступ к ориентации устройства в настройках MAX.');
+    if (orientation.requestPermission) {
+      let permission;
+      try {
+        permission = await orientation.requestPermission(true);
+      } catch (error) {
+        if (!fromTap && error.name === 'NotAllowedError') {
+          if (id === session) showNotice('idle', 'Разрешите доступ к компасу', 'Нажмите «Включить компас», чтобы открыть запрос телефона.');
+          return;
+        }
+        throw new Error('Проверьте разрешение на доступ к датчикам для MAX.');
+      }
+      if (permission !== 'granted') throw new Error('Разрешите доступ к ориентации устройства в настройках MAX.');
     }
     if (id !== session) return;
     showNotice('waiting', 'Определяем местоположение', 'Разрешите доступ к геопозиции.');
@@ -98,12 +108,24 @@ startButton.addEventListener('click', async () => {
   } catch (error) {
     if (id === session) fail('Компас пока недоступен', error.code ? 'Проверьте разрешение на геопозицию и попробуйте снова.' : error.message);
   }
-});
+}
+
+startButton.addEventListener('click', () => startCompass(true));
+let pendingAutoStart = true;
+function startWhenVisible() {
+  if (pendingAutoStart && !document.hidden) {
+    pendingAutoStart = false;
+    startCompass(false);
+  }
+}
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     stop();
     showNotice('idle', 'Держите телефон ровно', '');
+  } else {
+    startWhenVisible();
   }
 });
 window.WebApp?.ready?.();
+startWhenVisible();
