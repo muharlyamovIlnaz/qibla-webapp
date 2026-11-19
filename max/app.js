@@ -18,6 +18,36 @@ function loadField() {
   return fieldRequest;
 }
 
+function locate(precise) {
+  return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {
+    enableHighAccuracy: precise, maximumAge: precise ? 0 : 60000, timeout: precise ? 15000 : 8000
+  }));
+}
+
+function sufficientlyAccurate({latitude, longitude, accuracy}) {
+  return Number.isFinite(accuracy) && accuracy <= 6371000 * Math.sin(centralAngle(latitude, longitude)) * .07;
+}
+
+async function getPosition(id) {
+  try {
+    const coarse = await locate(false);
+    if (sufficientlyAccurate(coarse.coords) || id !== session) return coarse;
+  } catch (error) {
+    if (![2, 3].includes(error.code) || id !== session) throw error;
+  }
+  showNotice('waiting', 'Уточняем местоположение', 'Держите мини-приложение открытым.');
+  return locate(true);
+}
+
+function locationFailure(error) {
+  switch (error.code) {
+    case 1: return fail('Нет доступа к геопозиции', 'Разрешите MAX доступ к местоположению при использовании приложения. Затем нажмите «Попробовать снова».');
+    case 2: return fail('Телефон не определил местоположение', 'Проверьте, включена ли геолокация телефона, и попробуйте у окна или на улице.');
+    case 3: return fail('Определение места заняло слишком много времени', 'Попробуйте ещё раз у окна или на улице.');
+    default: return fail('Не удалось определить местоположение', 'Проверьте геолокацию телефона и повторите попытку.');
+  }
+}
+
 function pauseSensors() {
   clearInterval(watchdog);
   for (const event of orientationEvents) window.removeEventListener(event, onOrientation);
@@ -89,15 +119,16 @@ async function startCompass(fromTap) {
     if (id !== session) return;
     showNotice('waiting', 'Определяем местоположение', 'Разрешите доступ к геопозиции.');
     const [position, field] = await Promise.all([
-      new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true, timeout: 15000, maximumAge: 30000
-      })),
+      getPosition(id).catch(error => {
+        if (id === session) locationFailure(error);
+        return null;
+      }),
       loadField()
     ]);
     if (id !== session) return;
-    const {latitude, longitude, accuracy} = position.coords;
+    const {latitude, longitude} = position.coords;
     const angle = centralAngle(latitude, longitude);
-    if (!Number.isFinite(accuracy) || accuracy > 6371000 * Math.sin(angle) * .07) {
+    if (!sufficientlyAccurate(position.coords)) {
       throw new Error('Для этого места нужна более точная геопозиция. Попробуйте у окна или на улице.');
     }
     const target = bearing(latitude, longitude);
@@ -109,7 +140,7 @@ async function startCompass(fromTap) {
     sensorsReady = true;
     listenWhenVisible();
   } catch (error) {
-    if (id === session) fail('Компас пока недоступен', error.code ? 'Проверьте разрешение на геопозицию и попробуйте снова.' : error.message);
+    if (id === session) fail('Компас пока недоступен', error.message);
   }
 }
 
